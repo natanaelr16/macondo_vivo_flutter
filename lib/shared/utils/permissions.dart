@@ -14,17 +14,16 @@ class PermissionManager {
 
   /// Verificar si puede crear usuarios
   static bool canCreateUsers(UserModel? user) {
-    return canAccessUsers(user);
+    if (user == null) return false;
+    // Solo SuperUser puede crear usuarios
+    return user.appRole == AppRole.SuperUser;
   }
 
   /// Verificar si puede editar un usuario específico
   static bool canEditUser(UserModel? currentUser, UserModel? targetUser) {
     if (currentUser == null || targetUser == null) return false;
-    if (currentUser.appRole == AppRole.SuperUser) return true;
-    if (currentUser.appRole == AppRole.ADMIN) {
-      return targetUser.appRole != AppRole.SuperUser;
-    }
-    return false;
+    // Solo SuperUser puede editar usuarios
+    return currentUser.appRole == AppRole.SuperUser;
   }
 
   /// Verificar si puede eliminar un usuario
@@ -36,22 +35,15 @@ class PermissionManager {
   /// Verificar si puede cambiar el estado de un usuario
   static bool canChangeUserStatus(UserModel? currentUser, UserModel? targetUser) {
     if (currentUser == null || targetUser == null) return false;
-    if (currentUser.appRole == AppRole.SuperUser) return true;
-    if (currentUser.appRole == AppRole.ADMIN) {
-      return targetUser.appRole != AppRole.SuperUser;
-    }
-    return false;
+    // Solo SuperUser puede cambiar el estado de usuarios
+    return currentUser.appRole == AppRole.SuperUser;
   }
 
   /// Verificar si puede resetear contraseña
   static bool canResetPassword(UserModel? currentUser, UserModel? targetUser) {
     if (currentUser == null || targetUser == null) return false;
-    if (currentUser.appRole == AppRole.SuperUser) return true;
-    if (currentUser.appRole == AppRole.ADMIN) {
-      return targetUser.appRole != AppRole.SuperUser;
-    }
-    // Usuarios pueden resetear su propia contraseña
-    return currentUser.uid == targetUser.uid;
+    // Solo SuperUser puede resetear contraseñas de otros usuarios
+    return currentUser.appRole == AppRole.SuperUser;
   }
 
   /// Obtener mensaje de restricción
@@ -95,7 +87,7 @@ class PermissionManager {
       case AppRole.SuperUser:
         return [AppRole.SuperUser, AppRole.ADMIN, AppRole.USER];
       case AppRole.ADMIN:
-        return [AppRole.ADMIN, AppRole.USER];
+        return []; // Admin no puede asignar roles
       case AppRole.USER:
         return [];
     }
@@ -109,7 +101,7 @@ class PermissionManager {
       case AppRole.SuperUser:
         return [UserType.ADMIN_STAFF, UserType.DOCENTE, UserType.ESTUDIANTE, UserType.ACUDIENTE];
       case AppRole.ADMIN:
-        return [UserType.DOCENTE, UserType.ESTUDIANTE, UserType.ACUDIENTE];
+        return []; // Admin no puede crear usuarios
       case AppRole.USER:
         return [];
     }

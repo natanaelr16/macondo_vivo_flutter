@@ -141,7 +141,7 @@ class _ProvisionalPasswordDisplayState extends State<ProvisionalPasswordDisplay>
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.15)),
                   ),
@@ -224,7 +224,7 @@ class _ProvisionalPasswordDisplayState extends State<ProvisionalPasswordDisplay>
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceVariant,
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.15)),
               ),
@@ -272,7 +272,7 @@ class _ProvisionalPasswordDisplayState extends State<ProvisionalPasswordDisplay>
               child: Container(
                 padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8, right: 0),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Theme.of(context).colorScheme.outline.withOpacity(0.15)),
                 ),
@@ -306,7 +306,7 @@ class _ProvisionalPasswordDisplayState extends State<ProvisionalPasswordDisplay>
                         color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                       tooltip: isPasswordVisible ? 'Ocultar' : 'Mostrar',
-                      padding: EdgeInsets.only(right: 0),
+                      padding: const EdgeInsets.only(right: 0),
                       constraints: const BoxConstraints(),
                     ),
                     IconButton(
@@ -317,7 +317,7 @@ class _ProvisionalPasswordDisplayState extends State<ProvisionalPasswordDisplay>
                         color: hasCopied ? Colors.green : Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
                       ),
                       tooltip: hasCopied ? 'Copiado' : 'Copiar',
-                      padding: EdgeInsets.only(right: 0),
+                      padding: const EdgeInsets.only(right: 0),
                       constraints: const BoxConstraints(),
                     ),
                   ],

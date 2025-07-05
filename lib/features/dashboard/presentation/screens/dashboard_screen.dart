@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/providers/theme_provider.dart';
 import '../../../../shared/providers/data_provider.dart';
-import '../../../../core/widgets/text_logo.dart';
+import '../../../../core/widgets/animated_logo.dart';
 import '../../../../core/widgets/navigation_card.dart';
 import '../../../../core/widgets/stat_card.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
@@ -106,74 +106,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Welcome Section
-            Consumer<AuthProvider>(
-              builder: (context, authProvider, child) {
-                return Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        primaryColor,
-                        primaryColor.withOpacity(0.8),
-                        primaryColor.withOpacity(0.6),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: primaryColor.withOpacity(0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
+            // Animated Logo Section
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    primaryColor,
+                    primaryColor.withOpacity(0.8),
+                    primaryColor.withOpacity(0.6),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: primaryColor.withOpacity(0.3),
+                    blurRadius: 15,
+                    offset: const Offset(0, 6),
                   ),
-                  child: Column(
-                    children: [
-                      // Text Logo
-                      const TextLogo(
-                        fontSize: 24,
-                        color: Colors.white,
-                        showSubtitle: false,
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Welcome text
-                      const Text(
-                        '¡Bienvenido!',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        authProvider.user?.email ?? 'Usuario',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Sistema de Gestión Escolar',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
+                ],
+              ),
+              child: const AnimatedLogo(
+                fontSize: 32,
+                color: Colors.white,
+                showSubtitle: true,
+              ),
             ),
             
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             
             // Statistics Section
             Text(

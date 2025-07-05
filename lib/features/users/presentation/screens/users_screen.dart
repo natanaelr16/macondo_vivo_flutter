@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/services/user_service.dart';
+import '../../../../shared/utils/permissions.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
 import '../../../../shared/models/user_model.dart';
 import '../widgets/create_user_form.dart';
@@ -26,8 +28,20 @@ class _UsersScreenState extends State<UsersScreen> {
   UserType _selectedUserType = UserType.ADMIN_STAFF; // Por defecto administrativo
   AppRole? _selectedAppRole;
   bool? _selectedStatus; // null = todos, true = activo, false = inactivo
+  
+  // Filtros específicos para docentes
+  String? _selectedTeacherCategory; // 'administrativo' o 'docente'
+  GradeLevel? _selectedGradeLevel; // Para filtrar por nivel asignado
+  
+  // Paginación
   List<UserModel> _filteredUsers = [];
+  List<UserModel> _displayedUsers = []; // Usuarios mostrados actualmente
   int _lastUsersLength = 0;
+  String _lastUsersHash = ''; // Hash para detectar cambios reales en la lista
+  int _currentPage = 0;
+  static const int _usersPerPage = 10; // 10 usuarios por carga para mejor fluidez
+  bool _isLoadingMore = false;
+  bool _hasMoreUsers = true;
 
   @override
   void initState() {
@@ -37,6 +51,11 @@ class _UsersScreenState extends State<UsersScreen> {
       print('UsersScreen: Post frame callback, loading users...');
       final dataProvider = Provider.of<DataProvider>(context, listen: false);
       dataProvider.loadUsers();
+      // Inicializar paginación
+      _currentPage = 0;
+      _displayedUsers.clear();
+      _hasMoreUsers = true;
+      // Los primeros usuarios se cargarán automáticamente cuando se apliquen los filtros
     });
   }
 
@@ -44,6 +63,12 @@ class _UsersScreenState extends State<UsersScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Resetear filtros específicos de docentes cuando cambie la página
+  void _resetTeacherFilters() {
+    _selectedTeacherCategory = null;
+    _selectedGradeLevel = null;
   }
 
   void _applyFilters(List<UserModel> allUsers) {
@@ -71,10 +96,125 @@ class _UsersScreenState extends State<UsersScreen> {
         // Filtro por estado (activo/inactivo)
         final matchesStatus = _selectedStatus == null || user.isActive == _selectedStatus;
 
-        return matchesSearch && matchesUserType && matchesAppRole && matchesStatus;
+        // Filtros específicos para docentes
+        bool matchesTeacherFilters = true;
+        if (_selectedUserType == UserType.DOCENTE) {
+          // Filtro por categoría de docente
+          if (_selectedTeacherCategory != null) {
+            if (_selectedTeacherCategory == 'administrativo') {
+              // Incluir cargos administrativos
+              final isAdministrative = _isAdministrativePosition(user);
+              matchesTeacherFilters = isAdministrative;
+            } else if (_selectedTeacherCategory == 'docente') {
+              // Excluir cargos administrativos
+              final isAdministrative = _isAdministrativePosition(user);
+              matchesTeacherFilters = !isAdministrative;
+            }
+          }
+
+          // Filtro por nivel asignado
+          if (_selectedGradeLevel != null && user.typeSpecificData != null) {
+            matchesTeacherFilters = matchesTeacherFilters && 
+                user.typeSpecificData!.assignedToGradeLevel == _selectedGradeLevel;
+          }
+        }
+
+        return matchesSearch && matchesUserType && matchesAppRole && matchesStatus && matchesTeacherFilters;
       }).toList();
+
+      // Ordenar usuarios alfabéticamente
+      _filteredUsers.sort((a, b) {
+        // Para docentes: administrativos primero, luego docentes, ambos alfabéticamente
+        if (_selectedUserType == UserType.DOCENTE) {
+          final aIsAdmin = _isAdministrativePosition(a);
+          final bIsAdmin = _isAdministrativePosition(b);
+          
+          if (aIsAdmin && !bIsAdmin) return -1;
+          if (!aIsAdmin && bIsAdmin) return 1;
+          // Si ambos son del mismo tipo, ordenar alfabéticamente
+          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        }
+        
+        // Para otros tipos de usuario: solo ordenar alfabéticamente
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+      // Resetear paginación y cargar primeros usuarios inmediatamente
+      _currentPage = 0;
+      _displayedUsers.clear();
+      _hasMoreUsers = _filteredUsers.length > _usersPerPage;
+      
+      // Cargar primeros usuarios inmediatamente
+      if (_filteredUsers.isNotEmpty) {
+        final endIndex = _usersPerPage.clamp(0, _filteredUsers.length);
+        _displayedUsers.addAll(_filteredUsers.sublist(0, endIndex));
+        _currentPage = 1;
+        _hasMoreUsers = endIndex < _filteredUsers.length;
+      }
     });
   }
+
+  // Verificar si un docente tiene cargo administrativo
+  bool _isAdministrativePosition(UserModel user) {
+    if (user.typeSpecificData?.schoolPosition == null) return false;
+    
+    final position = user.typeSpecificData!.schoolPosition!;
+    return position == SchoolPosition.RECTOR ||
+           position == SchoolPosition.COORD_ACADEMICO_PRIMARIA ||
+           position == SchoolPosition.COORD_ACADEMICO_SECUNDARIA ||
+           position == SchoolPosition.COORD_CONVIVENCIA ||
+           position == SchoolPosition.ADMINISTRATIVO;
+  }
+
+  // Cargar más usuarios para paginación
+  void _loadMoreUsers() {
+    if (_isLoadingMore || !_hasMoreUsers) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    // Carga inmediata para mejor fluidez
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          final startIndex = _currentPage * _usersPerPage;
+          final endIndex = (startIndex + _usersPerPage).clamp(0, _filteredUsers.length);
+          
+          if (startIndex < _filteredUsers.length) {
+            _displayedUsers.addAll(_filteredUsers.sublist(startIndex, endIndex));
+            _currentPage++;
+            _hasMoreUsers = endIndex < _filteredUsers.length;
+          } else {
+            _hasMoreUsers = false;
+          }
+          
+          _isLoadingMore = false;
+        });
+      }
+    });
+  }
+
+  // Widget para mostrar indicador de carga
+  Widget _buildLoadingIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +308,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         ),
                         if (_selectedAppRole == AppRole.USER) ...[
                           const Spacer(),
-                          Icon(Icons.check, size: 16, color: Colors.blue),
+                          const Icon(Icons.check, size: 16, color: Colors.blue),
                         ],
                       ],
                     ),
@@ -192,7 +332,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         ),
                         if (_selectedAppRole == AppRole.ADMIN) ...[
                           const Spacer(),
-                          Icon(Icons.check, size: 16, color: Colors.red),
+                          const Icon(Icons.check, size: 16, color: Colors.red),
                         ],
                       ],
                     ),
@@ -216,7 +356,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         ),
                         if (_selectedAppRole == AppRole.SuperUser) ...[
                           const Spacer(),
-                          Icon(Icons.check, size: 16, color: Colors.purple),
+                          const Icon(Icons.check, size: 16, color: Colors.purple),
                         ],
                       ],
                     ),
@@ -253,7 +393,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         ),
                         if (_selectedStatus == true) ...[
                           const Spacer(),
-                          Icon(Icons.check, size: 16, color: Colors.green),
+                          const Icon(Icons.check, size: 16, color: Colors.green),
                         ],
                       ],
                     ),
@@ -277,7 +417,7 @@ class _UsersScreenState extends State<UsersScreen> {
                         ),
                         if (_selectedStatus == false) ...[
                           const Spacer(),
-                          Icon(Icons.check, size: 16, color: Colors.red),
+                          const Icon(Icons.check, size: 16, color: Colors.red),
                         ],
                       ],
                     ),
@@ -286,12 +426,203 @@ class _UsersScreenState extends State<UsersScreen> {
               );
             },
           ),
+          // Botón de filtros específicos para docentes (solo visible en página de docentes)
+          if (_selectedUserType == UserType.DOCENTE)
+            Consumer<DataProvider>(
+              builder: (context, dataProvider, child) {
+                return PopupMenuButton<String>(
+                  icon: Icon(
+                    Icons.school,
+                    color: (_selectedTeacherCategory != null || _selectedGradeLevel != null) 
+                        ? primaryColor 
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                  onSelected: (value) {
+                    setState(() {
+                      switch (value) {
+                        case 'category_administrativo':
+                          _selectedTeacherCategory = _selectedTeacherCategory == 'administrativo' ? null : 'administrativo';
+                          break;
+                        case 'category_docente':
+                          _selectedTeacherCategory = _selectedTeacherCategory == 'docente' ? null : 'docente';
+                          break;
+                        case 'level_preescolar':
+                          _selectedGradeLevel = _selectedGradeLevel == GradeLevel.PREESCOLAR ? null : GradeLevel.PREESCOLAR;
+                          break;
+                        case 'level_primaria':
+                          _selectedGradeLevel = _selectedGradeLevel == GradeLevel.PRIMARIA ? null : GradeLevel.PRIMARIA;
+                          break;
+                        case 'level_bachillerato':
+                          _selectedGradeLevel = _selectedGradeLevel == GradeLevel.BACHILLERATO ? null : GradeLevel.BACHILLERATO;
+                          break;
+                      }
+                      _applyFilters(dataProvider.users);
+                    });
+                  },
+                  itemBuilder: (context) => [
+                    // Título de Categoría
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Text(
+                        'CATEGORÍA',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'category_administrativo',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.admin_panel_settings,
+                            size: 16,
+                            color: _selectedTeacherCategory == 'administrativo' ? Colors.orange : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Administrativo',
+                            style: TextStyle(
+                              color: _selectedTeacherCategory == 'administrativo' ? Colors.orange : null,
+                              fontWeight: _selectedTeacherCategory == 'administrativo' ? FontWeight.bold : null,
+                            ),
+                          ),
+                          if (_selectedTeacherCategory == 'administrativo') ...[
+                            const Spacer(),
+                            const Icon(Icons.check, size: 16, color: Colors.orange),
+                          ],
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'category_docente',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school,
+                            size: 16,
+                            color: _selectedTeacherCategory == 'docente' ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Docentes',
+                            style: TextStyle(
+                              color: _selectedTeacherCategory == 'docente' ? Colors.blue : null,
+                              fontWeight: _selectedTeacherCategory == 'docente' ? FontWeight.bold : null,
+                            ),
+                          ),
+                          if (_selectedTeacherCategory == 'docente') ...[
+                            const Spacer(),
+                            const Icon(Icons.check, size: 16, color: Colors.blue),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    // Título de Nivel
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Text(
+                        'NIVEL ASIGNADO',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'level_preescolar',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.child_care,
+                            size: 16,
+                            color: _selectedGradeLevel == GradeLevel.PREESCOLAR ? Colors.green : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Transición',
+                            style: TextStyle(
+                              color: _selectedGradeLevel == GradeLevel.PREESCOLAR ? Colors.green : null,
+                              fontWeight: _selectedGradeLevel == GradeLevel.PREESCOLAR ? FontWeight.bold : null,
+                            ),
+                          ),
+                          if (_selectedGradeLevel == GradeLevel.PREESCOLAR) ...[
+                            const Spacer(),
+                            const Icon(Icons.check, size: 16, color: Colors.green),
+                          ],
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'level_primaria',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school,
+                            size: 16,
+                            color: _selectedGradeLevel == GradeLevel.PRIMARIA ? Colors.blue : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Primaria',
+                            style: TextStyle(
+                              color: _selectedGradeLevel == GradeLevel.PRIMARIA ? Colors.blue : null,
+                              fontWeight: _selectedGradeLevel == GradeLevel.PRIMARIA ? FontWeight.bold : null,
+                            ),
+                          ),
+                          if (_selectedGradeLevel == GradeLevel.PRIMARIA) ...[
+                            const Spacer(),
+                            const Icon(Icons.check, size: 16, color: Colors.blue),
+                          ],
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'level_bachillerato',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school,
+                            size: 16,
+                            color: _selectedGradeLevel == GradeLevel.BACHILLERATO ? Colors.purple : Colors.grey,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Secundaria',
+                            style: TextStyle(
+                              color: _selectedGradeLevel == GradeLevel.BACHILLERATO ? Colors.purple : null,
+                              fontWeight: _selectedGradeLevel == GradeLevel.BACHILLERATO ? FontWeight.bold : null,
+                            ),
+                          ),
+                          if (_selectedGradeLevel == GradeLevel.BACHILLERATO) ...[
+                            const Spacer(),
+                            const Icon(Icons.check, size: 16, color: Colors.purple),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: Consumer<AuthProvider>(
+        builder: (context, authProvider, child) {
+          // Solo mostrar FAB si puede crear usuarios (solo SuperUser)
+          if (!authProvider.canCreateUsers) {
+            return const SizedBox.shrink();
+          }
+          return FloatingActionButton(
             onPressed: () => _showCreateUserDialog(context),
             backgroundColor: primaryColor,
             child: const Icon(Icons.add, color: Colors.white),
+          );
+        },
       ),
       body: Consumer2<DataProvider, AuthProvider>(
         builder: (context, dataProvider, authProvider, child) {
@@ -336,11 +667,20 @@ class _UsersScreenState extends State<UsersScreen> {
 
           // Si los usuarios cambian, actualiza los filtros después del build
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_lastUsersLength != dataProvider.users.length) {
-              _lastUsersLength = dataProvider.users.length;
+            // Crear un hash simple de la lista de usuarios para detectar cambios reales
+            final currentHash = dataProvider.users.map((u) => '${u.uid}:${u.isActive}:${u.name}:${u.documentNumber}').join('|');
+            
+            // Solo actualizar si realmente hay cambios significativos
+            if (_lastUsersHash != currentHash) {
+              print('UsersScreen: Detected real changes in users list, updating filters');
+              _lastUsersHash = currentHash;
               _filteredUsers = List<UserModel>.from(dataProvider.users);
-              // Aplica los filtros actuales
+              // Resetear paginación cuando cambian los datos
+              _currentPage = 0;
+              _displayedUsers.clear();
+              _hasMoreUsers = true;
               _applyFilters(dataProvider.users);
+              // Los primeros usuarios se cargarán automáticamente en _applyFilters
             }
           });
 
@@ -446,6 +786,15 @@ class _UsersScreenState extends State<UsersScreen> {
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
                                   _searchController.clear();
+                                  // Limpiar todos los filtros al limpiar búsqueda
+                                  setState(() {
+                                    _selectedAppRole = null;
+                                    _selectedStatus = null;
+                                    _resetTeacherFilters();
+                                    _currentPage = 0;
+                                    _displayedUsers.clear();
+                                    _hasMoreUsers = true;
+                                  });
                                   _applyFilters(users);
                                 },
                               )
@@ -470,6 +819,7 @@ class _UsersScreenState extends State<UsersScreen> {
                             onTap: () {
                             setState(() {
                                 _selectedUserType = UserType.ADMIN_STAFF;
+                                _resetTeacherFilters();
                               _applyFilters(users);
                             });
                           },
@@ -484,6 +834,7 @@ class _UsersScreenState extends State<UsersScreen> {
                             onTap: () {
                             setState(() {
                                 _selectedUserType = UserType.DOCENTE;
+                                _resetTeacherFilters();
                               _applyFilters(users);
                             });
                           },
@@ -498,6 +849,7 @@ class _UsersScreenState extends State<UsersScreen> {
                             onTap: () {
                             setState(() {
                                 _selectedUserType = UserType.ESTUDIANTE;
+                                _resetTeacherFilters();
                               _applyFilters(users);
                             });
                           },
@@ -512,6 +864,7 @@ class _UsersScreenState extends State<UsersScreen> {
                             onTap: () {
                             setState(() {
                                 _selectedUserType = UserType.ACUDIENTE;
+                                _resetTeacherFilters();
                               _applyFilters(users);
                             });
                           },
@@ -525,15 +878,66 @@ class _UsersScreenState extends State<UsersScreen> {
                     if (_filteredUsers.length != users.length || 
                         _selectedAppRole != null || 
                         _selectedStatus != null ||
+                        _selectedTeacherCategory != null ||
+                        _selectedGradeLevel != null ||
                         _searchController.text.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Text(
-                              '${_filteredUsers.length} de ${users.length} usuarios',
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Mostrando ${_displayedUsers.length} de ${_filteredUsers.length} usuarios filtrados (${users.length} total)',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: textSecondaryColor,
                               ),
+                            ),
+                            if (_selectedTeacherCategory != null || _selectedGradeLevel != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    if (_selectedTeacherCategory != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: _selectedTeacherCategory == 'administrativo' 
+                                              ? Colors.orange.withOpacity(0.1) 
+                                              : Colors.blue.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Categoría: ${_selectedTeacherCategory == 'administrativo' ? 'Administrativo' : 'Docentes'}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: _selectedTeacherCategory == 'administrativo' ? Colors.orange : Colors.blue,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    if (_selectedGradeLevel != null)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.green.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Nivel: ${_getGradeLevelDisplayName(_selectedGradeLevel!)}',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                   ],
@@ -542,19 +946,19 @@ class _UsersScreenState extends State<UsersScreen> {
               
               // Lista de usuarios filtrados
               Expanded(
-                child: _filteredUsers.isEmpty
+                child: _displayedUsers.isEmpty && !_isLoadingMore
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              Icons.filter_list_off,
+                              _filteredUsers.isEmpty ? Icons.filter_list_off : Icons.search_off,
                               size: 64,
                               color: textSecondaryColor,
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'No se encontraron usuarios',
+                              _filteredUsers.isEmpty ? 'No se encontraron usuarios' : 'No hay usuarios para mostrar',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -563,24 +967,47 @@ class _UsersScreenState extends State<UsersScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Intenta ajustar los filtros de búsqueda',
+                              _filteredUsers.isEmpty 
+                                ? 'Intenta ajustar los filtros de búsqueda'
+                                : 'Todos los usuarios han sido cargados',
                               style: TextStyle(color: textSecondaryColor),
                               textAlign: TextAlign.center,
                             ),
+
                           ],
                         ),
                       )
                     : RefreshIndicator(
                         onRefresh: () async {
                           print('UsersScreen: Pull to refresh triggered');
+                          // Limpiar filtros y paginación
+                          setState(() {
+                            _selectedAppRole = null;
+                            _selectedStatus = null;
+                            _resetTeacherFilters();
+                            _searchController.clear();
+                            _currentPage = 0;
+                            _displayedUsers.clear();
+                            _hasMoreUsers = true;
+                          });
                           await dataProvider.loadUsers();
                         },
                         child: ListView.builder(
                           padding: const EdgeInsets.all(16),
-                          itemCount: _filteredUsers.length,
+                          itemCount: _displayedUsers.length + (_hasMoreUsers && _isLoadingMore ? 1 : 0),
                           itemBuilder: (context, index) {
-                            final user = _filteredUsers[index];
-                            print('UsersScreen: Building user card ${index + 1}/${_filteredUsers.length} for ${user.email}');
+                            // Si es el último elemento y se está cargando más, mostrar indicador de carga
+                            if (index == _displayedUsers.length && _hasMoreUsers && _isLoadingMore) {
+                              return _buildLoadingIndicator();
+                            }
+                            
+                            final user = _displayedUsers[index];
+                            print('UsersScreen: Building user card ${index + 1}/${_displayedUsers.length} for ${user.email}');
+                            
+                            // Cargar más usuarios cuando se acerca al final (más agresivo para mejor fluidez)
+                            if (index >= _displayedUsers.length - 2 && _hasMoreUsers && !_isLoadingMore) {
+                              _loadMoreUsers();
+                            }
                             
                             return _buildUserCard(
                               context,
@@ -858,7 +1285,7 @@ class _UsersScreenState extends State<UsersScreen> {
       // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Usuario ${statusText} exitosamente'),
+          content: Text('Usuario $statusText exitosamente'),
           backgroundColor: newStatus ? Colors.green : Colors.orange,
           duration: const Duration(seconds: 2),
         ),
@@ -941,7 +1368,7 @@ class _UsersScreenState extends State<UsersScreen> {
       } catch (e) {
         print('UsersScreen: ❌ Error en dataProvider.toggleUserStatus: $e');
         // Cerrar indicador de carga
-        Navigator.of(context).pop();
+              Navigator.of(context).pop();
         // Mostrar mensaje de error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -976,7 +1403,7 @@ class _UsersScreenState extends State<UsersScreen> {
       // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Usuario ${statusText} exitosamente'),
+          content: Text('Usuario $statusText exitosamente'),
           backgroundColor: newStatus ? Colors.green : Colors.orange,
           duration: const Duration(seconds: 2),
         ),
@@ -1546,7 +1973,7 @@ class _UsersScreenState extends State<UsersScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.green.withOpacity(0.3)),
                               ),
-                              child: Row(
+                              child: const Row(
                                 mainAxisSize: MainAxisSize.min,
                     children: [
                                   Icon(
@@ -1554,7 +1981,7 @@ class _UsersScreenState extends State<UsersScreen> {
                                     size: 16,
                                     color: Colors.green,
                                   ),
-                                  const SizedBox(width: 4),
+                                  SizedBox(width: 4),
                                   Text(
                                     'Verificado',
                                     style: TextStyle(
@@ -1569,7 +1996,7 @@ class _UsersScreenState extends State<UsersScreen> {
                           ] else ...[
                             // Usuario no verificado - mostrar llave
                       IconButton(
-                              icon: Icon(
+                              icon: const Icon(
                                 Icons.vpn_key,
                                 color: Colors.orange,
                               ),
@@ -1649,45 +2076,51 @@ class _UsersScreenState extends State<UsersScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                            // Botón de Reset Contraseña
-                            ElevatedButton.icon(
-                              onPressed: () => _resetUserPassword(currentUser, dataProvider),
-                              icon: const Icon(Icons.vpn_key, size: 16),
-                              label: const Text(
-                                'Reset Password',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                            // Botón de Reset Contraseña (solo SuperUser o el propio usuario)
+                            if (PermissionManager.canResetPassword(context.read<AuthProvider>().userData, currentUser)) ...[
+                              ElevatedButton.icon(
+                                onPressed: () => _resetUserPassword(currentUser, dataProvider),
+                                icon: const Icon(Icons.vpn_key, size: 16),
+                                label: const Text(
+                                  'Reset Password',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                                 ),
-                                elevation: 1,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 1,
+                                ),
                               ),
-                            ),
+                            ],
                             
-                            // Botón Editar
-                            _buildActionIconButton(
-                              icon: Icons.edit,
-                              color: Colors.blue,
-                              tooltip: 'Editar usuario',
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                                _showEditUserDialog(context, currentUser);
-                              },
-                            ),
+                            // Botón Editar (solo SuperUser)
+                            if (PermissionManager.canEditUser(context.read<AuthProvider>().userData, currentUser)) ...[
+                              _buildActionIconButton(
+                                icon: Icons.edit,
+                                color: Colors.blue,
+                                tooltip: 'Editar usuario',
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                  _showEditUserDialog(context, currentUser);
+                                },
+                              ),
+                            ],
                             
-                            // Botón Activar/Desactivar
-                            _buildActionIconButton(
-                              icon: currentUser.isActive ? Icons.block : Icons.check_circle,
-                              color: currentUser.isActive ? Colors.red : Colors.green,
-                              tooltip: currentUser.isActive ? 'Desactivar usuario' : 'Activar usuario',
-                              onPressed: () => _toggleUserStatusInModal(currentUser, dataProvider),
-                            ),
+                            // Botón Activar/Desactivar (solo SuperUser)
+                            if (PermissionManager.canChangeUserStatus(context.read<AuthProvider>().userData, currentUser)) ...[
+                              _buildActionIconButton(
+                                icon: currentUser.isActive ? Icons.block : Icons.check_circle,
+                                color: currentUser.isActive ? Colors.red : Colors.green,
+                                tooltip: currentUser.isActive ? 'Desactivar usuario' : 'Activar usuario',
+                                onPressed: () => _toggleUserStatusInModal(currentUser, dataProvider),
+                              ),
+                            ],
                             
-                            // Botón Eliminar (solo si no es el usuario actual)
+                            // Botón Eliminar (solo SuperUser)
                             if (_canDeleteUser(currentUser)) ...[
                               _buildActionIconButton(
                                 icon: Icons.delete,

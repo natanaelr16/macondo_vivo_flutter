@@ -230,10 +230,7 @@ class ProfileMenu extends StatelessWidget {
   }
 
   void _showSettingsScreen(BuildContext context) {
-    // TODO: Navigate to settings screen
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Pantalla de configuración próximamente')),
-    );
+    context.go('/settings');
   }
 
   Future<void> _handleLogout(BuildContext context) async {

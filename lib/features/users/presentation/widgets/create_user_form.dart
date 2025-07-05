@@ -49,15 +49,15 @@ class _CreateUserFormState extends State<CreateUserForm> {
   bool _isPTA = false;
   final List<TeacherRole> _teacherRoles = [];
   SchoolGrade _schoolGrade = SchoolGrade.PRIMARIA_GRADO_1;
-  int _representedChildrenCount = 1;
+  final int _representedChildrenCount = 1;
   String _profession = '';
 
   // Student search fields for Acudiente
   final _studentSearchController = TextEditingController();
   List<UserModel> _allStudents = [];
   List<UserModel> _filteredStudents = [];
-  List<UserModel> _selectedStudents = [];
-  bool _isSearchingStudents = false;
+  final List<UserModel> _selectedStudents = [];
+  final bool _isSearchingStudents = false;
   Timer? _studentSearchTimer;
 
   @override
@@ -503,7 +503,7 @@ class _CreateUserFormState extends State<CreateUserForm> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                      const Icon(Icons.info_outline, color: Colors.orange, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1086,10 +1086,10 @@ class _CreateUserFormState extends State<CreateUserForm> {
                   ),
                   subtitle: Text(
                     '${student.email} • ${student.documentNumber}',
-                    style: TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 12),
                   ),
                   trailing: isSelected
-                      ? Icon(Icons.check_circle, color: Colors.green, size: 20)
+                      ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
                       : IconButton(
                           icon: const Icon(Icons.add_circle_outline),
                           onPressed: () => _addSelectedStudent(student),

@@ -29,8 +29,8 @@ class AuthProvider extends ChangeNotifier {
   
   // Permission methods based on Firestore rules
   bool get canManageUsers => isSuperUser || isAdmin;
-  bool get canCreateUsers => isSuperUser || isAdmin;
-  bool get canEditUsers => isSuperUser || isAdmin;
+  bool get canCreateUsers => isSuperUser; // Solo SuperUser puede crear usuarios
+  bool get canEditUsers => isSuperUser; // Solo SuperUser puede editar usuarios
   bool get canDeleteUsers => isSuperUser;
 
   // Backward compatibility getter
