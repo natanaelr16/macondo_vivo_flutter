@@ -15,7 +15,7 @@ class LoadingWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final primaryColor = color ?? Theme.of(context).colorScheme.primary;
-    final textColor = Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).colorScheme.onSurface;
 
     return Center(
       child: Column(

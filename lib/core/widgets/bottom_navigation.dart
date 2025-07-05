@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../shared/providers/auth_provider.dart';
 
 class BottomNavigation extends StatelessWidget {
   final String currentRoute;
@@ -11,51 +13,59 @@ class BottomNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _NavigationItem(
-                icon: Icons.dashboard_rounded,
-                label: 'Dashboard',
-                isActive: currentRoute == '/dashboard',
-                onTap: () => context.go('/dashboard'),
-              ),
-              _NavigationItem(
-                icon: Icons.people_rounded,
-                label: 'Usuarios',
-                isActive: currentRoute == '/users',
-                onTap: () => context.go('/users'),
-              ),
-              _NavigationItem(
-                icon: Icons.school_rounded,
-                label: 'Actividades',
-                isActive: currentRoute == '/activities',
-                onTap: () => context.go('/activities'),
-              ),
-              _NavigationItem(
-                icon: Icons.analytics_rounded,
-                label: 'Reportes',
-                isActive: currentRoute == '/reports',
-                onTap: () => context.go('/reports'),
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final canManageUsers = authProvider.canManageUsers;
+        
+        return Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
               ),
             ],
           ),
-        ),
-      ),
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _NavigationItem(
+                    icon: Icons.dashboard_rounded,
+                    label: 'Dashboard',
+                    isActive: currentRoute == '/dashboard',
+                    onTap: () => context.go('/dashboard'),
+                  ),
+                  // Solo mostrar botón de usuarios si tiene permisos
+                  if (canManageUsers)
+                    _NavigationItem(
+                      icon: Icons.people_rounded,
+                      label: 'Usuarios',
+                      isActive: currentRoute == '/users',
+                      onTap: () => context.go('/users'),
+                    ),
+                  _NavigationItem(
+                    icon: Icons.school_rounded,
+                    label: 'Actividades',
+                    isActive: currentRoute == '/activities',
+                    onTap: () => context.go('/activities'),
+                  ),
+                  _NavigationItem(
+                    icon: Icons.analytics_rounded,
+                    label: 'Reportes',
+                    isActive: currentRoute == '/reports',
+                    onTap: () => context.go('/reports'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

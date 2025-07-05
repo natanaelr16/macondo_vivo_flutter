@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/models/activity_model.dart';
-import '../../../../shared/models/model_extensions.dart';
-import '../../../../shared/services/firestore_service.dart';
 import '../../../../core/widgets/loading_widget.dart';
 
 class ActivityDetailScreen extends StatefulWidget {
@@ -113,9 +111,9 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final backgroundColor = Theme.of(context).colorScheme.background;
+    final backgroundColor = Theme.of(context).colorScheme.surface;
     final cardColor = Theme.of(context).colorScheme.surface;
-    final textColor = Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).colorScheme.onSurface;
     final textSecondaryColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
 
     if (_isLoading) {
@@ -146,7 +144,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.error_outline,
                 size: 64,
                 color: Colors.red,
@@ -828,7 +826,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
               value,
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(context).colorScheme.onBackground,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
           ),

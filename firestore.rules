@@ -1,0 +1,62 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isAdminOrSuper() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null && userDoc.data.appRole in ['ADMIN', 'SuperUser'];
+    }
+    function isSuperUser() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc != null && userDoc.data.appRole == 'SuperUser';
+    }
+    function isSelf(userId) {
+      return request.auth.uid == userId;
+    }
+    function hasRequiredUserFields(data) {
+      return 'uid' in data &&
+             'email' in data &&
+             'firstName' in data &&
+             'lastName' in data &&
+             'documentType' in data &&
+             'documentNumber' in data &&
+             'userType' in data &&
+             'appRole' in data &&
+             'status' in data &&
+             'isActive' in data &&
+             'provisionalPasswordSet' in data &&
+             'createdAt' in data &&
+             'updatedAt' in data &&
+             'phone' in data;
+    }
+    
+    // Users collection - protected by role-based permissions
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isAdminOrSuper() || isSelf(userId));
+      allow create: if isAuthenticated() && isAdminOrSuper() && hasRequiredUserFields(request.resource.data);
+      allow update: if isAuthenticated() && (
+        isSuperUser() || 
+        (isAdminOrSuper() && (!('appRole' in request.resource.data) || get(/databases/$(database)/documents/users/$(userId)).data.appRole != 'SuperUser')) ||
+        (isSelf(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['provisionalPasswordSet', 'updatedAt']))
+      );
+      allow delete: if isAuthenticated() && isSuperUser();
+    }
+    
+    // Activities collection - allow authenticated users
+    match /activities/{activityId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Test collection - allow authenticated users for testing
+    match /test/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // All other collections - allow authenticated users
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+} 

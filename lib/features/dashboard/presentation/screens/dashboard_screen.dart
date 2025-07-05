@@ -1,22 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/providers/theme_provider.dart';
 import '../../../../shared/providers/data_provider.dart';
-import '../../../../shared/models/model_extensions.dart';
 import '../../../../core/widgets/text_logo.dart';
 import '../../../../core/widgets/navigation_card.dart';
 import '../../../../core/widgets/stat_card.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
 import '../../../../core/widgets/profile_menu.dart';
 import '../../../../shared/models/activity_model.dart';
-import '../../../../shared/models/user_model.dart';
-import '../../../../shared/providers/data_provider.dart';
-import '../../../../shared/models/activity_model.dart';
-import '../../../../core/widgets/modern_card.dart';
-import '../../../../core/widgets/loading_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -38,9 +31,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final backgroundColor = Theme.of(context).colorScheme.background;
+    final backgroundColor = Theme.of(context).colorScheme.surface;
     final cardColor = Theme.of(context).colorScheme.surface;
-    final textColor = Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).colorScheme.onSurface;
     final textSecondaryColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
 
     return Scaffold(
@@ -58,33 +51,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   themeProvider.setThemeMode(mode);
                 },
                 itemBuilder: (BuildContext context) => [
-                  PopupMenuItem<AppThemeMode>(
+                  const PopupMenuItem<AppThemeMode>(
                     value: AppThemeMode.light,
                     child: Row(
                       children: [
                         Icon(Icons.light_mode, color: Colors.orange),
-                        const SizedBox(width: 8),
-                        const Text('Claro'),
+                        SizedBox(width: 8),
+                        Text('Claro'),
                       ],
                     ),
                   ),
-                  PopupMenuItem<AppThemeMode>(
+                  const PopupMenuItem<AppThemeMode>(
                     value: AppThemeMode.dark,
                     child: Row(
                       children: [
                         Icon(Icons.dark_mode, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        const Text('Oscuro'),
+                        SizedBox(width: 8),
+                        Text('Oscuro'),
                       ],
                     ),
                   ),
-                  PopupMenuItem<AppThemeMode>(
+                  const PopupMenuItem<AppThemeMode>(
                     value: AppThemeMode.system,
                     child: Row(
                       children: [
                         Icon(Icons.brightness_auto, color: Colors.grey),
-                        const SizedBox(width: 8),
-                        const Text('Sistema'),
+                        SizedBox(width: 8),
+                        Text('Sistema'),
                       ],
                     ),
                   ),
@@ -149,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: 16),
                       
                       // Welcome text
-                      Text(
+                      const Text(
                         '¡Bienvenido!',
                         style: TextStyle(
                           fontSize: 28,
@@ -286,7 +279,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       route: '/users',
                       count: stats['totalUsers'],
                     ),
-                    NavigationCard(
+                    const NavigationCard(
                       title: 'Reportes',
                       subtitle: 'Ver reportes y estadísticas',
                       icon: Icons.analytics,

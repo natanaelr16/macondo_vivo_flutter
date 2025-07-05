@@ -1,12 +1,15 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:collection/collection.dart';
 import '../models/user_model.dart';
 import '../models/activity_model.dart';
 import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 
 class DataProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
 
   List<UserModel> _users = [];
   List<ActivityModel> _activities = [];
@@ -21,327 +24,266 @@ class DataProvider with ChangeNotifier {
 
   // Load users
   Future<void> loadUsers() async {
-    print('DataProvider: Starting loadUsers...');
-    setLoading(true);
     try {
-      print('DataProvider: Getting current user model...');
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      print('DataProvider: Current user model: ${currentUserModel?.email ?? "null"}');
+      _setLoading(true);
+      _clearError();
       
-      // Check permissions according to documentation
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
+      // Usar Firestore directamente para cargar usuarios (más rápido y confiable)
+      _users = await _firestoreService.getUsers();
+      
+      if (kDebugMode) {
+        print('DataProvider: Users loaded successfully - ${_users.length} users');
       }
-      
-      // Only ADMIN/SuperUser can access users according to documentation
-      if (!currentUserModel.isAdmin && !currentUserModel.isSuperUser) {
-        throw Exception('No tienes permisos para ver la lista de usuarios');
-      }
-      
-      print('DataProvider: Fetching users from Firestore...');
-      _users = await _firestoreService.getUsers(currentUser: currentUserModel);
-      print('DataProvider: Successfully loaded ${_users.length} users');
-      
-      _error = null;
     } catch (e) {
-      print('DataProvider: Error loading users: $e');
-      _error = e.toString();
-      _users = [];
-      throw e; // Re-throw to show error in UI
+      _setError('Error loading users: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error loading users: $e');
+      }
     } finally {
-      setLoading(false);
-      print('DataProvider: loadUsers completed');
+      _setLoading(false);
     }
   }
 
   // Load activities
   Future<void> loadActivities() async {
-    print('DataProvider: Starting loadActivities...');
-    setLoading(true);
     try {
-      print('DataProvider: Getting current user model...');
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      print('DataProvider: Current user model: ${currentUserModel?.email ?? "null"}');
+      _setLoading(true);
+      _clearError();
       
-      // Check permissions according to documentation
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
-      }
-      
-      // All authenticated users can read activities according to documentation
-      print('DataProvider: Fetching activities from Firestore...');
+      // Usar Firestore directamente para cargar actividades
       _activities = await _firestoreService.getActivities();
-      print('DataProvider: Successfully loaded ${_activities.length} activities');
       
-      // Load users needed for activity display (responsible users and creators)
-      await _loadUsersForActivities();
-      
-      _error = null;
+      if (kDebugMode) {
+        print('DataProvider: Activities loaded successfully - ${_activities.length} activities');
+      }
     } catch (e) {
-      print('DataProvider: Error loading activities: $e');
-      _error = e.toString();
-      _activities = [];
-      throw e; // Re-throw to show error in UI
+      _setError('Error loading activities: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error loading activities: $e');
+      }
     } finally {
-      setLoading(false);
-      print('DataProvider: loadActivities completed');
+      _setLoading(false);
     }
   }
 
-  // Load users needed for activities display
-  Future<void> _loadUsersForActivities() async {
+  // Create user using Firestore directly
+  Future<void> createUser(Map<String, dynamic> userData) async {
     try {
-      print('DataProvider: Loading users for activities display...');
+      _setLoading(true);
+      _clearError();
       
-      // Get all unique user IDs from activities (creators and responsible users)
-      final Set<String> userIds = {};
-      
-      for (final activity in _activities) {
-        userIds.add(activity.createdBy_uid);
-        for (final participant in activity.responsibleUsers) {
-          userIds.add(participant.userId);
-        }
-        for (final participant in activity.participants) {
-          userIds.add(participant.userId);
-        }
+      if (kDebugMode) {
+        print('DataProvider: Creating user with provisional password...');
       }
       
-      print('DataProvider: Found ${userIds.length} unique user IDs in activities');
+      // Crear UserModel desde los datos
+      final user = UserModel.fromJson(userData);
+      final provisionalPassword = userData['provisionalPassword'] as String;
       
-      // Load each user individually
-      final List<UserModel> activityUsers = [];
-      for (final userId in userIds) {
-        try {
-          final user = await _firestoreService.getUserById(userId);
-          if (user != null) {
-            activityUsers.add(user);
-          }
-        } catch (e) {
-          print('DataProvider: Error loading user $userId: $e');
-        }
-      }
-      
-      // Merge with existing users, avoiding duplicates
-      final existingUserIds = _users.map((u) => u.uid).toSet();
-      for (final user in activityUsers) {
-        if (!existingUserIds.contains(user.uid)) {
-          _users.add(user);
-        }
-      }
-      
-      print('DataProvider: Successfully loaded ${activityUsers.length} users for activities');
-    } catch (e) {
-      print('DataProvider: Error loading users for activities: $e');
-      // Don't throw error here as activities can still be displayed
-    }
-  }
-
-  // Create user
-  Future<void> createUser(UserModel user, String provisionalPassword) async {
-    print('DataProvider: Starting createUser...');
-    setLoading(true);
-    try {
-      // Check permissions according to documentation
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
-      }
-      
-      // Only SuperUser can create users according to documentation
-      if (!currentUserModel.isSuperUser) {
-        throw Exception('Solo los SuperUsers pueden crear usuarios');
-      }
-      
-      print('DataProvider: Creating user with provisional password...');
+      // Usar Firestore directamente para crear usuario
       await _firestoreService.createUser(user, provisionalPassword);
       
-      print('DataProvider: User created successfully, refreshing list...');
-      await loadUsers(); // Refresh the list
-      _error = null;
+      // Recargar la lista de usuarios
+      await loadUsers();
+      
+      if (kDebugMode) {
+        print('DataProvider: User created successfully');
+      }
     } catch (e) {
-      print('DataProvider: Error creating user: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
+      _setError('Error creating user: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error creating user: $e');
+      }
     } finally {
-      setLoading(false);
-      print('DataProvider: createUser completed');
+      _setLoading(false);
     }
   }
 
   // Create activity
-  Future<void> createActivity(ActivityModel activity) async {
-    print('DataProvider: Starting createActivity...');
-    setLoading(true);
+  Future<void> createActivity(Map<String, dynamic> activityData) async {
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) throw Exception('Usuario no autenticado');
+      _setLoading(true);
+      _clearError();
       
-      // Only ADMIN/SuperUser can create activities according to documentation
-      if (!currentUserModel.isAdmin && !currentUserModel.isSuperUser) {
-        throw Exception('Solo los Administradores y SuperUsers pueden crear actividades');
+      // Crear ActivityModel desde los datos
+      final activity = ActivityModel.fromJson(activityData);
+      
+      // Usar Firestore directamente para crear actividad
+      await _firestoreService.createActivity(activity);
+      
+      // Recargar la lista de actividades
+      await loadActivities();
+      
+      if (kDebugMode) {
+        print('DataProvider: Activity created successfully');
       }
-      
-      print('DataProvider: Creating activity...');
-      await _firestoreService.createActivity(activity, currentUserModel);
-      await loadActivities(); // Refresh the list
-      _error = null;
     } catch (e) {
-      print('DataProvider: Error creating activity: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
-    } finally {
-      setLoading(false);
-      print('DataProvider: createActivity completed');
-    }
-  }
-
-  // Update user
-  Future<void> updateUser(String userId, UserModel updatedUser) async {
-    print('DataProvider: Starting updateUser...');
-    setLoading(true);
-    try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) throw Exception('Usuario no autenticado');
-      
-      // Check permissions according to documentation
-      // SuperUser can edit everything, ADMIN limited, USER can only change password
-      if (!currentUserModel.isSuperUser && !currentUserModel.isAdmin) {
-        throw Exception('No tienes permisos para editar usuarios');
+      _setError('Error creating activity: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error creating activity: $e');
       }
-      
-      print('DataProvider: Updating user...');
-      await _firestoreService.updateUser(userId, updatedUser, currentUserModel);
-      await loadUsers(); // Refresh the list
-      _error = null;
-    } catch (e) {
-      print('DataProvider: Error updating user: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
     } finally {
-      setLoading(false);
-      print('DataProvider: updateUser completed');
+      _setLoading(false);
     }
   }
 
-  // Update activity
-  Future<void> updateActivity(String activityId, ActivityModel updatedActivity) async {
-    setLoading(true);
+  // Update user using Firestore directly
+  Future<void> updateUser(String userId, Map<String, dynamic> userData) async {
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) throw Exception('Usuario no autenticado');
+      _setLoading(true);
+      _clearError();
       
-      await _firestoreService.updateActivity(activityId, updatedActivity, currentUserModel);
-      await loadActivities(); // Refresh the list
-      _error = null;
+      // Usar Firestore directamente para actualizar usuario
+      await _firestoreService.updateUser(userId, userData);
+      
+      // Recargar la lista de usuarios
+      await loadUsers();
+      
+      if (kDebugMode) {
+        print('DataProvider: User updated successfully');
+      }
     } catch (e) {
-      _error = e.toString();
+      _setError('Error updating user: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error updating user: $e');
+      }
     } finally {
-      setLoading(false);
+      _setLoading(false);
     }
   }
 
-  // Delete user
+  // Update activity using Firestore directly
+  Future<void> updateActivity(String activityId, Map<String, dynamic> activityData) async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
+      // Usar Firestore directamente para actualizar actividad
+      await _firestoreService.updateActivity(activityId, activityData);
+      
+      // Recargar la lista de actividades
+      await loadActivities();
+      
+      if (kDebugMode) {
+        print('DataProvider: Activity updated successfully');
+      }
+    } catch (e) {
+      _setError('Error updating activity: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error updating activity: $e');
+      }
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Delete user using Firestore directly
   Future<void> deleteUser(String userId) async {
-    print('DataProvider: Starting deleteUser...');
-    setLoading(true);
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) throw Exception('Usuario no autenticado');
+      _setLoading(true);
+      _clearError();
       
-      // Only SuperUser can delete users according to documentation
-      if (!currentUserModel.isSuperUser) {
-        throw Exception('Solo los SuperUsers pueden eliminar usuarios');
+      // Usar Firestore directamente para eliminar usuario
+      await _firestoreService.deleteUser(userId);
+      
+      // Recargar la lista de usuarios
+      await loadUsers();
+      
+      if (kDebugMode) {
+        print('DataProvider: User deleted successfully');
       }
-      
-      print('DataProvider: Deleting user...');
-      await _firestoreService.deleteUser(userId, currentUserModel);
-      await loadUsers(); // Refresh the list
-      _error = null;
     } catch (e) {
-      print('DataProvider: Error deleting user: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
+      _setError('Error deleting user: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error deleting user: $e');
+      }
     } finally {
-      setLoading(false);
-      print('DataProvider: deleteUser completed');
+      _setLoading(false);
     }
   }
 
-  // Delete activity
+  // Update users locally without reloading from Firestore
+  void updateUsersLocally(List<UserModel> updatedUsers) {
+    _users = updatedUsers;
+    notifyListeners();
+    if (kDebugMode) {
+      print('DataProvider: Users updated locally - ${_users.length} users');
+    }
+  }
+
+  // Toggle user status using UserService
+  Future<void> toggleUserStatus(String userId, bool newStatus) async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
+      await _userService.toggleUserStatus(userId, newStatus);
+      
+      // Recargar la lista de usuarios
+      await loadUsers();
+      
+      if (kDebugMode) {
+        print('DataProvider: User status toggled successfully');
+      }
+    } catch (e) {
+      _setError('Error toggling user status: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error toggling user status: $e');
+      }
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Reset user password using UserService
+  Future<String> resetUserPassword(String userId) async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
+      final newPassword = await _userService.resetUserPassword(userId);
+      
+      // Recargar la lista de usuarios
+      await loadUsers();
+      
+      if (kDebugMode) {
+        print('DataProvider: User password reset successfully');
+      }
+      
+      return newPassword;
+    } catch (e) {
+      _setError('Error resetting user password: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error resetting user password: $e');
+      }
+      rethrow;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Delete activity using Firestore directly
   Future<void> deleteActivity(String activityId) async {
-    print('DataProvider: Starting deleteActivity...');
-    setLoading(true);
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) throw Exception('Usuario no autenticado');
+      _setLoading(true);
+      _clearError();
       
-      // Only SuperUser and creator (ADMIN) can delete activities according to documentation
-      if (!currentUserModel.isSuperUser && !currentUserModel.isAdmin) {
-        throw Exception('No tienes permisos para eliminar actividades');
+      // Usar Firestore directamente para eliminar actividad
+      await _firestoreService.deleteActivity(activityId);
+      
+      // Recargar la lista de actividades
+      await loadActivities();
+      
+      if (kDebugMode) {
+        print('DataProvider: Activity deleted successfully');
       }
-      
-      print('DataProvider: Deleting activity...');
-      await _firestoreService.deleteActivity(activityId, currentUserModel);
-      await loadActivities(); // Refresh the list
-      _error = null;
     } catch (e) {
-      print('DataProvider: Error deleting activity: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
+      _setError('Error deleting activity: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error deleting activity: $e');
+      }
     } finally {
-      setLoading(false);
-      print('DataProvider: deleteActivity completed');
-    }
-  }
-
-  // Complete activity session
-  Future<void> completeActivitySession(String activityId, int sessionNumber) async {
-    print('DataProvider: Starting completeActivitySession...');
-    setLoading(true);
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) throw Exception('Usuario no autenticado');
-      
-      // Participants and responsible users can complete sessions according to documentation
-      print('DataProvider: Completing activity session...');
-      await _firestoreService.completeActivitySession(activityId, sessionNumber, currentUser.uid);
-      await loadActivities(); // Refresh the list
-      _error = null;
-    } catch (e) {
-      print('DataProvider: Error completing activity session: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
-    } finally {
-      setLoading(false);
-      print('DataProvider: completeActivitySession completed');
-    }
-  }
-
-  // Approve activity completion
-  Future<void> approveActivityCompletion(String activityId, int sessionNumber, String participantUserId) async {
-    print('DataProvider: Starting approveActivityCompletion...');
-    setLoading(true);
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) throw Exception('Usuario no autenticado');
-      
-      // Only responsible users can approve completions according to documentation
-      print('DataProvider: Approving activity completion...');
-      await _firestoreService.approveActivityCompletion(
-        activityId, 
-        sessionNumber, 
-        participantUserId, 
-        currentUser.uid
-      );
-      await loadActivities(); // Refresh the list
-      _error = null;
-    } catch (e) {
-      print('DataProvider: Error approving activity completion: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
-    } finally {
-      setLoading(false);
-      print('DataProvider: approveActivityCompletion completed');
+      _setLoading(false);
     }
   }
 
@@ -349,80 +291,30 @@ class DataProvider with ChangeNotifier {
   Future<List<ActivityModel>> getUserActivities(String userId) async {
     print('DataProvider: Starting getUserActivities...');
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
-      }
-      
-      // Check permissions according to documentation
-      // Users can see their own activities, ADMIN/SuperUser can see all
-      if (!currentUserModel.isAdmin && !currentUserModel.isSuperUser && currentUserModel.uid != userId) {
-        throw Exception('No tienes permisos para ver las actividades de otros usuarios');
-      }
-      
-      print('DataProvider: Fetching user activities...');
-      final activities = await _firestoreService.getUserActivities(userId);
-      print('DataProvider: Successfully loaded ${activities.length} user activities');
+      // Por ahora, obtener todas las actividades
+      // TODO: Implementar filtrado por usuario cuando se necesite
+      final activities = await _firestoreService.getActivities();
+      print('DataProvider: Successfully loaded ${activities.length} activities');
       
       _error = null;
       return activities;
     } catch (e) {
       print('DataProvider: Error getting user activities: $e');
       _error = e.toString();
-      throw e; // Re-throw to show error in UI
+      rethrow; // Re-throw to show error in UI
     }
   }
 
-  // Generate reports
-  Future<Map<String, dynamic>> generateUserReport() async {
-    print('DataProvider: Starting generateUserReport...');
+  // Generate reports using Firestore directly
+  Future<List<Map<String, dynamic>>> getReports({int? limit, String? userId}) async {
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
-      }
-      
-      // Only ADMIN/SuperUser can generate reports according to documentation
-      if (!currentUserModel.isAdmin && !currentUserModel.isSuperUser) {
-        throw Exception('No tienes permisos para generar reportes');
-      }
-      
-      print('DataProvider: Generating user report...');
-      final report = await _firestoreService.generateUserReport();
-      print('DataProvider: User report generated successfully');
-      
-      _error = null;
-      return report;
+      // Por ahora retornamos una lista vacía, se puede implementar más tarde
+      return [];
     } catch (e) {
-      print('DataProvider: Error generating user report: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
-    }
-  }
-
-  Future<Map<String, dynamic>> generateActivityReport() async {
-    print('DataProvider: Starting generateActivityReport...');
-    try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
+      if (kDebugMode) {
+        print('DataProvider: Error getting reports: $e');
       }
-      
-      // Only ADMIN/SuperUser can generate reports according to documentation
-      if (!currentUserModel.isAdmin && !currentUserModel.isSuperUser) {
-        throw Exception('No tienes permisos para generar reportes');
-      }
-      
-      print('DataProvider: Generating activity report...');
-      final report = await _firestoreService.generateActivityReport();
-      print('DataProvider: Activity report generated successfully');
-      
-      _error = null;
-      return report;
-    } catch (e) {
-      print('DataProvider: Error generating activity report: $e');
-      _error = e.toString();
-      throw e; // Re-throw to show error in UI
+      rethrow;
     }
   }
 
@@ -431,15 +323,10 @@ class DataProvider with ChangeNotifier {
     print('DataProvider: Starting loadAllData...');
     setLoading(true);
     try {
-      final currentUserModel = await _firestoreService.getCurrentUserModel();
-      if (currentUserModel == null) {
-        throw Exception('Usuario no autenticado');
-      }
-      
       print('DataProvider: Loading all data...');
       await Future.wait([
         loadActivities(), // All authenticated users can read activities
-        if (currentUserModel.isAdmin || currentUserModel.isSuperUser) loadUsers(), // Only ADMIN/SuperUser can read users
+        loadUsers(), // Load users (permissions checked in FirestoreService)
       ]);
       print('DataProvider: All data loaded successfully');
       
@@ -447,7 +334,7 @@ class DataProvider with ChangeNotifier {
     } catch (e) {
       print('DataProvider: Error loading all data: $e');
       _error = e.toString();
-      throw e; // Re-throw to show error in UI
+      rethrow; // Re-throw to show error in UI
     } finally {
       setLoading(false);
       print('DataProvider: loadAllData completed');
@@ -520,6 +407,30 @@ class DataProvider with ChangeNotifier {
     }
   }
 
+
+
+  // Change user status using Firestore directly
+  Future<void> changeUserStatus(String userId, bool isActive) async {
+    try {
+      _setLoading(true);
+      _clearError();
+      
+      // Usar el método updateUser ya implementado
+      await updateUser(userId, {'isActive': isActive});
+      
+      if (kDebugMode) {
+        print('DataProvider: User status changed successfully');
+      }
+    } catch (e) {
+      _setError('Error changing user status: $e');
+      if (kDebugMode) {
+        print('DataProvider: Error changing user status: $e');
+      }
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // Helper methods
   void setLoading(bool loading) {
     _isLoading = loading;
@@ -532,7 +443,86 @@ class DataProvider with ChangeNotifier {
   }
 
   void clearError() {
+    _clearError();
+  }
+
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    notifyListeners();
+  }
+
+  void _setError(String error) {
+    _error = error;
+    notifyListeners();
+  }
+
+  void _clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  // Filter methods
+  List<UserModel> getFilteredUsers({
+    String? searchQuery,
+    UserType? userType,
+    AppRole? appRole,
+    bool? isActive,
+  }) {
+    return _users.where((user) {
+      // Search filter
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        final query = searchQuery.toLowerCase();
+        final matchesSearch = user.firstName.toLowerCase().contains(query) ||
+            user.lastName.toLowerCase().contains(query) ||
+            user.email.toLowerCase().contains(query) ||
+            user.documentNumber.contains(query);
+        if (!matchesSearch) return false;
+      }
+
+      // User type filter
+      if (userType != null && user.userType != userType) {
+        return false;
+      }
+
+      // App role filter
+      if (appRole != null && user.appRole != appRole) {
+        return false;
+      }
+
+      // Active status filter
+      if (isActive != null && user.isActive != isActive) {
+        return false;
+      }
+
+      return true;
+    }).toList();
+  }
+
+  List<ActivityModel> getFilteredActivities({
+    String? searchQuery,
+    String? status,
+    String? category,
+  }) {
+    return _activities.where((activity) {
+      // Search filter
+      if (searchQuery != null && searchQuery.isNotEmpty) {
+        final query = searchQuery.toLowerCase();
+        final matchesSearch = activity.title.toLowerCase().contains(query) ||
+            activity.description.toLowerCase().contains(query);
+        if (!matchesSearch) return false;
+      }
+
+      // Status filter
+      if (status != null && activity.status.name != status) {
+        return false;
+      }
+
+      // Category filter
+      if (category != null && activity.category != category) {
+        return false;
+      }
+
+      return true;
+    }).toList();
   }
 } 

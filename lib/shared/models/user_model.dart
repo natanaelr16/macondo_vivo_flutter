@@ -183,6 +183,7 @@ class UserModel {
   final UserStatus? status;
   final bool isActive;
   final bool provisionalPasswordSet;
+  final String? provisionalPassword; // Stored temporarily until user changes password
   final DateTime createdAt;
   final DateTime updatedAt;
   final TypeSpecificData? typeSpecificData;
@@ -200,6 +201,7 @@ class UserModel {
     this.status,
     required this.isActive,
     required this.provisionalPasswordSet,
+    this.provisionalPassword,
     required this.createdAt,
     required this.updatedAt,
     this.typeSpecificData,
@@ -237,15 +239,39 @@ class UserModel {
       'status': status?.name,
       'isActive': isActive,
       'provisionalPasswordSet': provisionalPasswordSet,
+      'provisionalPassword': provisionalPassword, // Stored temporarily until password change
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'typeSpecificData': typeSpecificData?.toMap(),
     };
   }
 
+  // Convert to Firestore document with only required fields per security rules
+  Map<String, dynamic> toFirestoreCreate() {
+    return {
+      'email': email,
+      'firstName': firstName,
+      'lastName': lastName,
+      'documentType': documentType.name,
+      'documentNumber': documentNumber,
+      'phone': phone ?? '', // Required by Firestore rules - ensure it's never null
+      'userType': userType.name,
+      'appRole': appRole.name,
+      'status': status?.name ?? 'VERIFIED', // Required by Firestore rules
+      'isActive': isActive,
+      'provisionalPasswordSet': provisionalPasswordSet,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+
   // Create from Firestore document
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    
+    print('UserModel.fromFirestore: Raw data: $data');
+    print('UserModel.fromFirestore: appRole from Firestore: ${data['appRole']}');
+    print('UserModel.fromFirestore: userType from Firestore: ${data['userType']}');
     
     // Helper function to parse dates from different formats
     DateTime parseDate(dynamic dateValue) {
@@ -268,7 +294,47 @@ class UserModel {
       }
     }
     
-    return UserModel(
+    // Parse appRole with detailed logging
+    AppRole parsedAppRole;
+    try {
+      final appRoleString = data['appRole'] ?? 'USER';
+      print('UserModel.fromFirestore: Parsing appRole: $appRoleString');
+      print('UserModel.fromFirestore: Available AppRole values: ${AppRole.values.map((e) => e.name).toList()}');
+      
+      parsedAppRole = AppRole.values.firstWhere(
+        (e) => e.name == appRoleString,
+        orElse: () {
+          print('UserModel.fromFirestore: AppRole not found, defaulting to USER');
+          return AppRole.USER;
+        },
+      );
+      print('UserModel.fromFirestore: Parsed appRole: ${parsedAppRole.name}');
+    } catch (e) {
+      print('UserModel.fromFirestore: Error parsing appRole: $e');
+      parsedAppRole = AppRole.USER;
+    }
+    
+    // Parse userType with detailed logging
+    UserType parsedUserType;
+    try {
+      final userTypeString = data['userType'] ?? 'ESTUDIANTE';
+      print('UserModel.fromFirestore: Parsing userType: $userTypeString');
+      print('UserModel.fromFirestore: Available UserType values: ${UserType.values.map((e) => e.name).toList()}');
+      
+      parsedUserType = UserType.values.firstWhere(
+        (e) => e.name == userTypeString,
+        orElse: () {
+          print('UserModel.fromFirestore: UserType not found, defaulting to ESTUDIANTE');
+          return UserType.ESTUDIANTE;
+        },
+      );
+      print('UserModel.fromFirestore: Parsed userType: ${parsedUserType.name}');
+    } catch (e) {
+      print('UserModel.fromFirestore: Error parsing userType: $e');
+      parsedUserType = UserType.ESTUDIANTE;
+    }
+    
+    final userModel = UserModel(
       uid: data['uid'] ?? doc.id,
       email: data['email'] ?? '',
       firstName: data['firstName'] ?? '',
@@ -279,25 +345,24 @@ class UserModel {
       ),
       documentNumber: data['documentNumber'] ?? '',
       phone: data['phone'],
-      userType: UserType.values.firstWhere(
-        (e) => e.name == (data['userType'] ?? 'ESTUDIANTE'),
-        orElse: () => UserType.ESTUDIANTE,
-      ),
-      appRole: AppRole.values.firstWhere(
-        (e) => e.name == (data['appRole'] ?? 'USER'),
-        orElse: () => AppRole.USER,
-      ),
+      userType: parsedUserType,
+      appRole: parsedAppRole,
       status: data['status'] != null 
           ? UserStatus.values.firstWhere((e) => e.name == data['status'])
           : null,
       isActive: data['isActive'] ?? true,
       provisionalPasswordSet: data['provisionalPasswordSet'] ?? false,
+      provisionalPassword: data['provisionalPassword'], // Read from Firestore if exists
       createdAt: parseDate(data['createdAt']),
       updatedAt: parseDate(data['updatedAt']),
       typeSpecificData: data['typeSpecificData'] != null 
           ? TypeSpecificData.fromMap(data['typeSpecificData'])
           : null,
     );
+    
+    print('UserModel.fromFirestore: Final user model - appRole: ${userModel.appRole.name}, isSuperUser: ${userModel.isSuperUser}, isAdmin: ${userModel.isAdmin}');
+    
+    return userModel;
   }
 
   // Create a copy with updated fields
@@ -314,6 +379,7 @@ class UserModel {
     UserStatus? status,
     bool? isActive,
     bool? provisionalPasswordSet,
+    String? provisionalPassword,
     DateTime? createdAt,
     DateTime? updatedAt,
     TypeSpecificData? typeSpecificData,
@@ -331,6 +397,7 @@ class UserModel {
       status: status ?? this.status,
       isActive: isActive ?? this.isActive,
       provisionalPasswordSet: provisionalPasswordSet ?? this.provisionalPasswordSet,
+      provisionalPassword: provisionalPassword ?? this.provisionalPassword,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       typeSpecificData: typeSpecificData ?? this.typeSpecificData,
@@ -352,6 +419,7 @@ class UserModel {
       'status': status?.name,
       'isActive': isActive,
       'provisionalPasswordSet': provisionalPasswordSet,
+      'provisionalPassword': provisionalPassword, // Include in JSON for API compatibility
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
       'typeSpecificData': typeSpecificData?.toMap(),
@@ -384,6 +452,7 @@ class UserModel {
           : null,
       isActive: json['isActive'] ?? true,
       provisionalPasswordSet: json['provisionalPasswordSet'] ?? false,
+      provisionalPassword: json['provisionalPassword'], // Read from JSON if exists
       createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
       updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
       typeSpecificData: json['typeSpecificData'] != null 

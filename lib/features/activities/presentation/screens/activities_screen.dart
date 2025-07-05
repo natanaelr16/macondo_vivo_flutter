@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../shared/providers/data_provider.dart';
-import '../../../../shared/providers/auth_provider.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
 import '../../../../shared/models/activity_model.dart';
-import '../../../../shared/models/model_extensions.dart';
 import '../widgets/create_activity_form.dart';
 import '../../../../core/widgets/loading_widget.dart';
-import '../../../../shared/services/firestore_service.dart';
 import 'activity_detail_screen.dart';
 
 enum ActivityFilter {
@@ -49,9 +45,9 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     print('ActivitiesScreen: Building widget...');
     
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final backgroundColor = Theme.of(context).colorScheme.background;
+    final backgroundColor = Theme.of(context).colorScheme.surface;
     final cardColor = Theme.of(context).colorScheme.surface;
-    final textColor = Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).colorScheme.onSurface;
     final textSecondaryColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
 
     return Scaffold(
@@ -86,7 +82,7 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.error_outline,
                     size: 64,
                     color: Colors.red,
@@ -665,7 +661,7 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   void _completeActivity(ActivityModel activity, DataProvider dataProvider) {
     dataProvider.updateActivity(
       activity.activityId, 
-      activity.copyWith(status: ActivityStatus.COMPLETADA)
+      {'status': 'COMPLETADA'}
     );
   }
 

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
-import '../../../../shared/models/activity_model.dart';
-import '../../../../shared/models/user_model.dart';
+
 
 class CreateActivityForm extends StatefulWidget {
   const CreateActivityForm({super.key});
@@ -69,8 +68,8 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
-    final backgroundColor = theme.colorScheme.background;
-    final textColor = theme.colorScheme.onBackground;
+    final backgroundColor = theme.colorScheme.surface;
+    final textColor = theme.colorScheme.onSurface;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -538,12 +537,12 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
                         items.removeAt(index);
                       });
                     },
-                    icon: Icon(Icons.delete, color: Colors.red, size: 20),
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
                   ),
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ],
     );
@@ -574,7 +573,7 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue, size: 20),
+                  const Icon(Icons.info_outline, color: Colors.blue, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -656,37 +655,36 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
         throw Exception('Usuario no autenticado');
       }
 
-      await context.read<DataProvider>().createActivity(
-        ActivityModel(
-          activityId: '', // Will be set by Firestore
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          numberOfSessions: _numberOfSessions,
-          sessionDates: _sessionDates.take(_numberOfSessions).toList().asMap().entries.map((entry) => SessionDate(
-            sessionNumber: entry.key + 1,
-            date: entry.value,
-            startTime: '09:00',
-            endTime: '10:00',
-          )).toList(),
-          submissionLink: _submissionLinkController.text.trim().isEmpty 
-              ? null 
-              : _submissionLinkController.text.trim(),
-          category: _selectedCategory,
-          estimatedDuration: _estimatedDurationController.text.trim().isEmpty 
-              ? null 
-              : int.tryParse(_estimatedDurationController.text.trim()),
-          materials: _materials,
-          objectives: _objectives,
-          responsibleUsers: [], // Will be populated by the backend
-          participants: [], // Will be populated by the backend
-          status: ActivityStatus.values.firstWhere((e) => e.name == _status),
-          adminCanEdit: _adminCanEdit,
-          createdBy_uid: currentUser.uid,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-          sessionCompletions: [],
-        ),
-      );
+      final activityData = {
+        'title': _titleController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'numberOfSessions': _numberOfSessions,
+        'sessionDates': _sessionDates.take(_numberOfSessions).toList().asMap().entries.map((entry) => {
+          'sessionNumber': entry.key + 1,
+          'date': entry.value.toIso8601String(),
+          'startTime': '09:00',
+          'endTime': '10:00',
+        }).toList(),
+        'submissionLink': _submissionLinkController.text.trim().isEmpty 
+            ? null 
+            : _submissionLinkController.text.trim(),
+        'category': _selectedCategory,
+        'estimatedDuration': _estimatedDurationController.text.trim().isEmpty 
+            ? null 
+            : int.tryParse(_estimatedDurationController.text.trim()),
+        'materials': _materials,
+        'objectives': _objectives,
+        'responsibleUsers': [], // Will be populated by the backend
+        'participants': [], // Will be populated by the backend
+        'status': _status,
+        'adminCanEdit': _adminCanEdit,
+        'createdBy_uid': currentUser.uid,
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+        'sessionCompletions': [],
+      };
+
+      await context.read<DataProvider>().createActivity(activityData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

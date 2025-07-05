@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../shared/providers/data_provider.dart';
-import '../../../../shared/providers/auth_provider.dart';
-import '../../../../shared/models/model_extensions.dart';
 import '../../../../core/widgets/modern_card.dart';
-import '../../../../core/widgets/loading_widget.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -75,7 +71,7 @@ class _ReportsScreenState extends State<ReportsScreen>
     final primaryColor = theme.colorScheme.primary;
     
     return Scaffold(
-      backgroundColor: theme.colorScheme.background,
+      backgroundColor: theme.colorScheme.surface,
       bottomNavigationBar: const BottomNavigation(currentRoute: '/reports'),
       appBar: AppBar(
         title: const Text('Reportes'),

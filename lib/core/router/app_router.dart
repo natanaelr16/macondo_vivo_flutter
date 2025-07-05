@@ -33,6 +33,12 @@ class AppRouter {
         return '/dashboard';
       }
       
+      // Protect users route - only ADMIN and SuperUser can access
+      if (state.matchedLocation == '/users' && !authProvider.canManageUsers) {
+        print('Router: User does not have permission to access users');
+        return '/dashboard';
+      }
+      
       print('Router: No redirect needed');
       return null;
     },
@@ -49,7 +55,23 @@ class AppRouter {
       GoRoute(
         path: '/dashboard',
         name: 'dashboard',
-        builder: (context, state) => const DashboardScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const DashboardScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final offsetAnimation = Tween<Offset>(
+              begin: const Offset(0, 0.1),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                position: offsetAnimation,
+                child: child,
+              ),
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/activities',

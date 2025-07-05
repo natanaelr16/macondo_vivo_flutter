@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/user_model.dart' show UserModel;
 
 class ApiService {
-  static const String baseUrl = 'https://macondo-vivo.vercel.app/api';
+  static const String baseUrl = 'https://macondo-vivo-macondovivo.vercel.app/api';
   
-  static Future<String> _getIdToken() async {
+  static Future<String> _getAuthToken() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       throw Exception('Usuario no autenticado');
@@ -18,239 +19,392 @@ class ApiService {
   }
 
   static Future<Map<String, String>> _getHeaders() async {
-    final idToken = await _getIdToken();
+    final token = await _getAuthToken();
     return {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer $idToken',
+      'Authorization': 'Bearer $token',
     };
   }
 
-  // Usuarios
-  static Future<List<Map<String, dynamic>>> getUsers() async {
+  // Crear usuario usando la API del proyecto web
+  static Future<Map<String, dynamic>> createUser(Map<String, dynamic> userData) async {
     try {
       final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/create'),
+        headers: headers,
+        body: jsonEncode(userData),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al crear usuario');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener usuarios usando la API del proyecto web
+  static Future<List<UserModel>> getUsers() async {
+    try {
+      final headers = await _getHeaders();
+      
       final response = await http.get(
         Uri.parse('$baseUrl/users'),
         headers: headers,
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.cast<Map<String, dynamic>>();
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((json) => UserModel.fromJson(json)).toList();
       } else {
-        throw Exception('Error al obtener usuarios: ${response.statusCode}');
+        throw Exception('Error al obtener usuarios');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
-  static Future<Map<String, dynamic>> getUserById(String userId) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw Exception('Error al obtener usuario: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  static Future<void> createUser(Map<String, dynamic> userData) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/users/create'),
-        headers: headers,
-        body: json.encode(userData),
-      );
-
-      if (response.statusCode != 201) {
-        throw Exception('Error al crear usuario: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
+  // Actualizar usuario usando la API del proyecto web
   static Future<void> updateUser(String userId, Map<String, dynamic> userData) async {
     try {
       final headers = await _getHeaders();
+      
       final response = await http.put(
         Uri.parse('$baseUrl/users/update/$userId'),
         headers: headers,
-        body: json.encode(userData),
+        body: jsonEncode(userData),
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Error al actualizar usuario: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al actualizar usuario');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
+  // Eliminar usuario usando la API del proyecto web
   static Future<void> deleteUser(String userId) async {
     try {
       final headers = await _getHeaders();
+      
       final response = await http.delete(
         Uri.parse('$baseUrl/users/delete/$userId'),
         headers: headers,
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Error al eliminar usuario: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al eliminar usuario');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
-  // Actividades
+  // Resetear contraseña usando la API del proyecto web
+  static Future<String> resetPassword(String userId) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/reset-password/$userId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['provisionalPassword'];
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al resetear contraseña');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Toggle user status using the web API
+  static Future<Map<String, dynamic>> toggleUserStatus(String userId, bool newStatus) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.patch(
+        Uri.parse('$baseUrl/users/$userId'),
+        headers: headers,
+        body: jsonEncode({'isActive': newStatus}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al cambiar estado del usuario');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Reset user password using the web API
+  static Future<Map<String, dynamic>> resetUserPassword(String userId) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/$userId/reset-password'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al resetear contraseña');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener actividades usando la API del proyecto web
   static Future<List<Map<String, dynamic>>> getActivities() async {
     try {
       final headers = await _getHeaders();
+      
       final response = await http.get(
         Uri.parse('$baseUrl/activities'),
         headers: headers,
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
+        final List<dynamic> data = jsonDecode(response.body);
         return data.cast<Map<String, dynamic>>();
       } else {
-        throw Exception('Error al obtener actividades: ${response.statusCode}');
+        throw Exception('Error al obtener actividades');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
-  static Future<Map<String, dynamic>> getActivityById(String activityId) async {
+  // Crear actividad usando la API del proyecto web
+  static Future<Map<String, dynamic>> createActivity(Map<String, dynamic> activityData) async {
     try {
       final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/activities/$activityId'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw Exception('Error al obtener actividad: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  static Future<void> createActivity(Map<String, dynamic> activityData) async {
-    try {
-      final headers = await _getHeaders();
+      
       final response = await http.post(
         Uri.parse('$baseUrl/activities'),
         headers: headers,
-        body: json.encode(activityData),
+        body: jsonEncode(activityData),
       );
 
-      if (response.statusCode != 201) {
-        throw Exception('Error al crear actividad: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al crear actividad');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
-  static Future<void> updateActivity(String activityId, Map<String, dynamic> activityData) async {
+  // Completar sesión de actividad
+  static Future<Map<String, dynamic>> completeActivitySession(
+    String activityId, 
+    Map<String, dynamic> completionData
+  ) async {
     try {
       final headers = await _getHeaders();
-      final response = await http.put(
-        Uri.parse('$baseUrl/activities/$activityId'),
-        headers: headers,
-        body: json.encode(activityData),
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Error al actualizar actividad: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  static Future<void> deleteActivity(String activityId) async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/activities/$activityId'),
-        headers: headers,
-      );
-
-      if (response.statusCode != 200) {
-        throw Exception('Error al eliminar actividad: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  static Future<void> completeActivity(String activityId) async {
-    try {
+      
       final response = await http.post(
         Uri.parse('$baseUrl/activities/$activityId/complete'),
+        headers: headers,
+        body: jsonEncode(completionData),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al completar sesión');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Aprobar completación de sesión
+  static Future<Map<String, dynamic>> approveActivitySession(
+    String activityId, 
+    Map<String, dynamic> approvalData
+  ) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/activities/$activityId/approve'),
+        headers: headers,
+        body: jsonEncode(approvalData),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al aprobar sesión');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener reportes
+  static Future<List<Map<String, dynamic>>> getReports({int? limit, String? userId}) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final queryParams = <String, String>{};
+      if (limit != null) queryParams['limit'] = limit.toString();
+      if (userId != null) queryParams['userId'] = userId;
+      
+      final uri = Uri.parse('$baseUrl/reports').replace(queryParameters: queryParams);
+      
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception('Error al obtener reportes');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Crear reporte
+  static Future<Map<String, dynamic>> createReport(Map<String, dynamic> reportData) async {
+    try {
+      final headers = await _getHeaders();
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/reports'),
+        headers: headers,
+        body: jsonEncode(reportData),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Error al crear reporte');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Verificar estado de sesión
+  static Future<Map<String, dynamic>> checkSessionStatus(
+    String sessionId, 
+    String firebaseToken
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/session/check-status'),
         headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sessionId': sessionId,
+          'firebaseToken': firebaseToken,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Error al verificar estado de sesión');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener sesiones de usuario
+  static Future<List<Map<String, dynamic>>> getUserSessions(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/session/user-sessions?token=$token'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data['sessions'] ?? []);
+      } else {
+        throw Exception('Error al obtener sesiones de usuario');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Terminar sesión
+  static Future<void> terminateSession(
+    String sessionId, 
+    String firebaseToken, 
+    {String reason = 'remote_termination'}
+  ) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/session/user-sessions'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'sessionId': sessionId,
+          'firebaseToken': firebaseToken,
+          'reason': reason,
+        }),
       );
 
       if (response.statusCode != 200) {
-        throw Exception('Error al completar actividad: ${response.statusCode}');
+        throw Exception('Error al terminar sesión');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getUserActivities(String userId) async {
+  // Obtener contraseña provisional usando la API del proyecto web
+  static Future<String?> getProvisionalPassword(String userId) async {
     try {
       final headers = await _getHeaders();
+      print('[API] 🔄 Iniciando consulta de contraseña provisional...');
+      print('[API] 🔄 URL: $baseUrl/users/$userId/provisional-password');
+      print('[API] 🔄 UserID: $userId');
+      print('[API] 🔄 Headers obtenidos correctamente');
       final response = await http.get(
-        Uri.parse('$baseUrl/users/$userId/activities'),
+        Uri.parse('$baseUrl/users/$userId/provisional-password'),
         headers: headers,
       );
-
+      print('[API] Status: [1m${response.statusCode}[0m');
+      print('[API] Body: ${response.body}');
       if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
-        return data.cast<Map<String, dynamic>>();
+        final data = jsonDecode(response.body);
+        print('[API] Provisional password: ${data['provisionalPassword']}');
+        return data['provisionalPassword'];
       } else {
-        throw Exception('Error al obtener actividades del usuario: ${response.statusCode}');
+        print('[API] No se pudo obtener la clave provisional.');
+        return null;
       }
     } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  // Reportes
-  static Future<Map<String, dynamic>> getReports() async {
-    try {
-      final headers = await _getHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/reports'),
-        headers: headers,
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw Exception('Error al obtener reportes: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
+      print('[API] Error al consultar clave provisional: $e');
+      return null;
     }
   }
 } 

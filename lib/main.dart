@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
@@ -202,230 +201,201 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  late AnimationController _inController;
+  late AnimationController _outController;
+  late Animation<double> _fadeIn;
+  late Animation<Offset> _slideIn;
+  late Animation<double> _fadeOut;
+  late Animation<Offset> _slideOut;
+
+  bool _isLoading = false;
+  bool _isExiting = false;
+  bool _showPassword = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _inController = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    _outController = AnimationController(vsync: this, duration: const Duration(milliseconds: 350));
+    _fadeIn = CurvedAnimation(parent: _inController, curve: Curves.easeOut);
+    _slideIn = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _inController, curve: Curves.easeOut));
+    _fadeOut = CurvedAnimation(parent: _outController, curve: Curves.easeIn);
+    _slideOut = Tween<Offset>(begin: Offset.zero, end: const Offset(0, -0.2)).animate(CurvedAnimation(parent: _outController, curve: Curves.easeIn));
+    _inController.forward();
+  }
+
+  @override
+  void dispose() {
+    _inController.dispose();
+    _outController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = Theme.of(context).colorScheme.primary;
-    final backgroundColor = Theme.of(context).colorScheme.background;
+    final backgroundColor = Theme.of(context).colorScheme.surface;
     final cardColor = Theme.of(context).colorScheme.surface;
-    final textColor = Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).colorScheme.onSurface;
     final textSecondaryColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
 
     return Scaffold(
       backgroundColor: backgroundColor,
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Text Logo
-                const TextLogo(
-                  fontSize: 48,
-                  showSubtitle: true,
-                ),
-                
-                const SizedBox(height: 32),
-                
-                // Subtitle
-                Text(
-                  'Inicia sesión para continuar',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Animación para el logo de Macondo Vivo
+                  const TextLogo(
+                    fontSize: 48,
+                    showSubtitle: true,
                   ),
-                ),
-                const SizedBox(height: 48),
-                
-                // Debug button (temporary)
-                Consumer<AuthProvider>(
-                  builder: (context, authProvider, child) {
-                    return Column(
-                      children: [
-                        Text(
-                          'Debug Info:',
-                          style: Theme.of(context).textTheme.bodySmall,
+                  const SizedBox(height: 32),
+                  // Subtitle
+                  Text(
+                    'Inicia sesión para continuar',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                                            Text(
-                      'Authenticated: ${authProvider?.isAuthenticated ?? false}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    Text(
-                      'User: ${authProvider?.user?.email ?? "None"}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                  ),
+                  const SizedBox(height: 48),
+                  // Animación para el formulario de login
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 40.0, end: 0.0),
+                    duration: const Duration(milliseconds: 700),
+                    curve: Curves.easeOut,
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: 1 - (value / 40.0),
+                        child: Transform.translate(
+                          offset: Offset(0, value),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextField(
+                          controller: _emailController,
+                          style: TextStyle(color: textColor),
+                          decoration: InputDecoration(
+                            labelText: 'Correo Electrónico',
+                            prefixIcon: Icon(Icons.email, color: textSecondaryColor),
+                          ),
+                        ),
                         const SizedBox(height: 16),
-                      ],
-                    );
-                  },
-                ),
-                
-                // Login Form
-                Column(
-                  children: [
-                    TextField(
-                      controller: _emailController,
-                      style: TextStyle(color: textColor),
-                      decoration: InputDecoration(
-                        labelText: 'Correo Electrónico',
-                        prefixIcon: Icon(Icons.email, color: textSecondaryColor),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _passwordController,
-                      style: TextStyle(color: textColor),
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'Contraseña',
-                        prefixIcon: Icon(Icons.lock, color: textSecondaryColor),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Login Button
-                    Consumer<AuthProvider>(
-                      builder: (context, authProvider, child) {
-                        return SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: authProvider?.isLoading == true ? null : _handleLogin,
-                            child: authProvider?.isLoading == true
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                    ),
-                                  )
-                                : const Text(
-                                    'Iniciar Sesión',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                                  ),
-                          ),
-                        );
-                      },
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Info about Firebase authentication
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: primaryColor.withOpacity(0.3)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Autenticación Firebase',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: primaryColor,
+                        TextField(
+                          controller: _passwordController,
+                          style: TextStyle(color: textColor),
+                          obscureText: !_showPassword,
+                          decoration: InputDecoration(
+                            labelText: 'Contraseña',
+                            prefixIcon: Icon(Icons.lock, color: textSecondaryColor),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _showPassword ? Icons.visibility : Icons.visibility_off,
+                                color: textSecondaryColor,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _showPassword = !_showPassword;
+                                });
+                              },
+                              tooltip: _showPassword ? 'Ocultar contraseña' : 'Ver contraseña',
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Esta aplicación usa Firebase Authentication para conectarse a tu base de datos existente de Macondo Vivo.',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: textColor,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Usa las mismas credenciales que usas en la aplicación web.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: textSecondaryColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Theme selector
-                    Consumer<ThemeProvider>(
-                      builder: (context, themeProvider, child) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: primaryColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: primaryColor.withOpacity(0.3)),
-                          ),
-                          child: InkWell(
-                            onTap: _showThemeSelector,
-                            borderRadius: BorderRadius.circular(20),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    themeProvider.themeModeIcon,
-                                    size: 16,
-                                    color: primaryColor,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    themeProvider.themeModeName,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: primaryColor,
-                                      fontWeight: FontWeight.w500,
+                        ),
+                        const SizedBox(height: 24),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 48,
+                                  height: 52,
+                                  child: CircularProgressIndicator(strokeWidth: 3),
+                                )
+                              : SizedBox(
+                                  width: double.infinity,
+                                  height: 52,
+                                  child: ElevatedButton(
+                                    onPressed: _handleLogin,
+                                    child: const Text(
+                                      'Iniciar Sesión',
+                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                                     ),
                                   ),
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.arrow_drop_down,
-                                    size: 16,
-                                    color: primaryColor,
-                                  ),
-                                ],
+                                ),
+                        ),
+                        const SizedBox(height: 16),
+                        Consumer<ThemeProvider>(
+                          builder: (context, themeProvider, child) => Center(
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 8),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: primaryColor.withOpacity(0.3)),
+                              ),
+                              child: IconButton(
+                                icon: Icon(
+                                  themeProvider.themeModeIcon,
+                                  size: 20,
+                                  color: primaryColor,
+                                ),
+                                onPressed: _showThemeSelector,
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
+                                splashRadius: 20,
+                                tooltip: 'Cambiar tema',
                               ),
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ],
                     ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Manual navigation button (for testing)
-                    ElevatedButton(
-                      onPressed: () {
-                        print('Manual navigation to dashboard');
-                        context.go('/dashboard');
-                      },
-                      child: const Text('Ir al Dashboard (Manual)'),
-                    ),
-                    
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(bottom: 24.0, top: 8.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Tecnologías usadas',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildTechLogo('assets/logos/flutter.png'),
+                _buildTechLogo('assets/logos/firebase.png'),
+                _buildTechLogo('assets/logos/dart.png'),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -440,10 +410,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    print('LoginScreen: Starting login process...');
-    
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      print('LoginScreen: Empty fields detected');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Por favor completa todos los campos'),
@@ -452,57 +419,68 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
-
+    setState(() => _isLoading = true);
     final authProvider = context.read<AuthProvider>();
     final dataProvider = context.read<DataProvider>();
-    
-    print('LoginScreen: Calling authProvider.signIn...');
     final success = await authProvider.signIn(
       _emailController.text.trim(),
       _passwordController.text,
     );
-
-    print('LoginScreen: Sign in result: $success');
-    print('LoginScreen: AuthProvider isAuthenticated: ${authProvider.isAuthenticated}');
-    print('LoginScreen: AuthProvider user: ${authProvider.user?.email}');
-
     if (success && mounted) {
-      print('LoginScreen: Login successful, showing welcome message');
-      
-      // Force refresh the auth state
       await authProvider.refreshState();
-      
-      // Initialize data
       await dataProvider.loadAllData();
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('¡Bienvenido, ${authProvider.user?.email}!'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      );
-      
-      // Force router refresh by navigating
+      setState(() {
+        _isExiting = true;
+        _isLoading = false;
+      });
+      await _outController.forward();
       if (mounted) {
-        print('LoginScreen: Forcing navigation to dashboard');
         context.go('/dashboard');
       }
     } else if (mounted && authProvider.error != null) {
-      print('LoginScreen: Login failed, showing error: ${authProvider.error}');
+      setState(() => _isLoading = false);
+      final errorMsg = _firebaseErrorToSpanish(authProvider.error!);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(authProvider.error!),
+          content: Text(errorMsg),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
+    } else {
+      setState(() => _isLoading = false);
     }
   }
 
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
+  String _firebaseErrorToSpanish(String error) {
+    if (error.contains('user-not-found')) {
+      return 'No existe una cuenta con ese correo.';
+    } else if (error.contains('wrong-password')) {
+      return 'La contraseña es incorrecta.';
+    } else if (error.contains('invalid-email')) {
+      return 'El correo electrónico no es válido.';
+    } else if (error.contains('too-many-requests')) {
+      return 'Demasiados intentos fallidos. Intenta de nuevo más tarde.';
+    } else if (error.contains('network-request-failed')) {
+      return 'Error de red. Verifica tu conexión a internet.';
+    } else if (error.contains('user-disabled')) {
+      return 'Esta cuenta ha sido deshabilitada.';
+    }
+    // Mensaje genérico para otros errores
+    return 'Error al iniciar sesión. Verifica tus credenciales.';
+  }
+
+  Widget _buildTechLogo(String assetPath) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0),
+      child: Opacity(
+        opacity: 0.6,
+        child: SizedBox(
+          width: 75,
+          height: 75,
+          child: Image.asset(assetPath),
+        ),
+      ),
+    );
   }
 }
 
