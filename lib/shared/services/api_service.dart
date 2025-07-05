@@ -135,19 +135,36 @@ class ApiService {
     try {
       final headers = await _getHeaders();
       
+      print('ApiService: Toggling user status for $userId to $newStatus');
+      print('ApiService: Request URL: $baseUrl/users/$userId');
+      print('ApiService: Request body: ${jsonEncode({'isActive': newStatus})}');
+      print('ApiService: Headers: $headers');
+      
       final response = await http.patch(
         Uri.parse('$baseUrl/users/$userId'),
         headers: headers,
         body: jsonEncode({'isActive': newStatus}),
       );
 
+      print('ApiService: Response status code: ${response.statusCode}');
+      print('ApiService: Response headers: ${response.headers}');
+      print('ApiService: Response body: ${response.body}');
+
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final responseData = jsonDecode(response.body);
+        print('ApiService: ✅ Parsed response: $responseData');
+        print('ApiService: ✅ Success field: ${responseData['success']}');
+        print('ApiService: ✅ Message field: ${responseData['message']}');
+        return responseData;
       } else {
         final errorData = jsonDecode(response.body);
+        print('ApiService: ❌ Error response: $errorData');
+        print('ApiService: ❌ Error message: ${errorData['message']}');
         throw Exception(errorData['message'] ?? 'Error al cambiar estado del usuario');
       }
     } catch (e) {
+      print('ApiService: ❌ Exception: $e');
+      print('ApiService: ❌ Exception type: ${e.runtimeType}');
       throw Exception('Error de conexión: $e');
     }
   }

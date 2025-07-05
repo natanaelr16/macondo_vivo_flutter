@@ -204,10 +204,39 @@ class DataProvider with ChangeNotifier {
 
   // Update users locally without reloading from Firestore
   void updateUsersLocally(List<UserModel> updatedUsers) {
+    print('DataProvider: updateUsersLocally called with ${updatedUsers.length} users');
     _users = updatedUsers;
+    print('DataProvider: Local users list updated, calling notifyListeners()');
     notifyListeners();
+    print('DataProvider: notifyListeners() called from updateUsersLocally');
     if (kDebugMode) {
       print('DataProvider: Users updated locally - ${_users.length} users');
+    }
+  }
+
+  // Update a single user's status locally without reloading from Firestore
+  void updateUserStatusLocally(String userId, bool newStatus) {
+    print('DataProvider: updateUserStatusLocally called for user $userId with status $newStatus');
+    print('DataProvider: Current users count: ${_users.length}');
+    final userIndex = _users.indexWhere((user) => user.uid == userId);
+    print('DataProvider: Found user at index: $userIndex');
+    
+    if (userIndex != -1) {
+      final oldStatus = _users[userIndex].isActive;
+      print('DataProvider: Before update - user.isActive: ${_users[userIndex].isActive}');
+      _users[userIndex] = _users[userIndex].copyWith(isActive: newStatus);
+      print('DataProvider: After update - user.isActive: ${_users[userIndex].isActive}');
+      print('DataProvider: Updated user locally: ${_users[userIndex].email} changed from ${oldStatus ? 'active' : 'inactive'} to ${newStatus ? 'active' : 'inactive'}');
+      print('DataProvider: Calling notifyListeners() to update UI');
+      notifyListeners();
+      print('DataProvider: notifyListeners() called from updateUserStatusLocally');
+      
+      // Verificar que el cambio se aplicó
+      final verificationUser = _users.firstWhere((u) => u.uid == userId);
+      print('DataProvider: Verification - user.isActive after notifyListeners: ${verificationUser.isActive}');
+    } else {
+      print('DataProvider: User not found in local list for status update');
+      print('DataProvider: Available user UIDs: ${_users.map((u) => u.uid).toList()}');
     }
   }
 
@@ -217,10 +246,28 @@ class DataProvider with ChangeNotifier {
       _setLoading(true);
       _clearError();
       
-      await _userService.toggleUserStatus(userId, newStatus);
+      print('DataProvider: Toggling user status for $userId to $newStatus');
+      print('DataProvider: Calling _userService.toggleUserStatus...');
       
-      // Recargar la lista de usuarios
-      await loadUsers();
+      await _userService.toggleUserStatus(userId, newStatus);
+      print('DataProvider: _userService.toggleUserStatus completed successfully');
+      
+      // Actualizar el usuario localmente sin recargar toda la lista
+      final userIndex = _users.indexWhere((user) => user.uid == userId);
+      print('DataProvider: Found user at index: $userIndex');
+      if (userIndex != -1) {
+        final oldStatus = _users[userIndex].isActive;
+        print('DataProvider: Before copyWith - user.isActive: ${_users[userIndex].isActive}');
+        _users[userIndex] = _users[userIndex].copyWith(isActive: newStatus);
+        print('DataProvider: After copyWith - user.isActive: ${_users[userIndex].isActive}');
+        print('DataProvider: Updated user locally: ${_users[userIndex].email} changed from ${oldStatus ? 'active' : 'inactive'} to ${newStatus ? 'active' : 'inactive'}');
+        print('DataProvider: Calling notifyListeners() to update UI');
+        notifyListeners();
+        print('DataProvider: notifyListeners() called');
+      } else {
+        print('DataProvider: User not found in local list, reloading all users');
+        await loadUsers();
+      }
       
       if (kDebugMode) {
         print('DataProvider: User status toggled successfully');

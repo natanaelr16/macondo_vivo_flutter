@@ -1429,7 +1429,7 @@ class _CreateUserFormState extends State<CreateUserForm> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                      Text(
                                   '${user.firstName} ${user.lastName}',
                                   style: TextStyle(
                                     fontSize: 18,
@@ -1451,13 +1451,13 @@ class _CreateUserFormState extends State<CreateUserForm> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey[700],
-                                  ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
+                        ),
                           _buildRoleBadge(user.appRole),
-                        ],
+                      ],
                       ),
                     ],
                   ),

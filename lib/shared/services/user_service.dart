@@ -174,11 +174,13 @@ class UserService {
   Future<void> updateUser(String uid, Map<String, dynamic> updates) async {
     try {
       print('UserService: Updating user $uid...');
+      print('UserService: Updates recibidos: $updates');
+      print('UserService: isActive en updates: ${updates['isActive']}');
       
       // Update user using FirestoreService
       await _firestoreService.updateUser(uid, updates);
       
-      print('UserService: ✅ User updated successfully');
+      print('UserService: ✅ User updated successfully via FirestoreService');
       
     } catch (e) {
       print('UserService: Error updating user: $e');
@@ -217,6 +219,10 @@ class UserService {
       
       // Call the web API to toggle user status
       final response = await ApiService.toggleUserStatus(uid, newStatus);
+      
+      print('UserService: API Response: $response');
+      print('UserService: Response type: ${response.runtimeType}');
+      print('UserService: Response keys: ${response.keys.toList()}');
       
       if (response['success'] == true) {
         print('UserService: ✅ User status updated successfully via API');

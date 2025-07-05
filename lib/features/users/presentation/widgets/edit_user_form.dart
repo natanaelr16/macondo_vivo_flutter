@@ -25,11 +25,13 @@ class _EditUserFormState extends State<EditUserForm> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _documentNumberController = TextEditingController();
 
   // Selected values
   DocumentType _selectedDocumentType = DocumentType.CC;
   UserType _selectedUserType = UserType.ESTUDIANTE;
   AppRole _selectedAppRole = AppRole.USER;
+  bool _isActive = true;
 
   // Type-specific fields
   String _areaOfStudy = '';
@@ -42,6 +44,7 @@ class _EditUserFormState extends State<EditUserForm> {
   final List<TeacherRole> _teacherRoles = [];
   SchoolGrade _schoolGrade = SchoolGrade.PRIMARIA_GRADO_1;
   String _profession = '';
+  int _representedChildrenCount = 1;
 
   @override
   void initState() {
@@ -56,9 +59,11 @@ class _EditUserFormState extends State<EditUserForm> {
     _firstNameController.text = user.firstName;
     _lastNameController.text = user.lastName;
     _phoneController.text = user.phone ?? '';
+    _documentNumberController.text = user.documentNumber;
     _selectedDocumentType = user.documentType;
     _selectedUserType = user.userType;
     _selectedAppRole = user.appRole;
+    _isActive = user.isActive;
 
     // Type-specific data
     final data = user.typeSpecificData;
@@ -76,6 +81,7 @@ class _EditUserFormState extends State<EditUserForm> {
       }
       _schoolGrade = data.schoolGrade ?? SchoolGrade.PRIMARIA_GRADO_1;
       _profession = data.profession ?? '';
+      _representedChildrenCount = data.representedChildrenCount ?? 1;
     }
   }
 
@@ -84,6 +90,7 @@ class _EditUserFormState extends State<EditUserForm> {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _phoneController.dispose();
+    _documentNumberController.dispose();
     super.dispose();
   }
 
@@ -198,8 +205,23 @@ class _EditUserFormState extends State<EditUserForm> {
 
                   const SizedBox(height: 24),
 
-                  // Basic Information
-                  _buildSectionTitle('Información Básica', Icons.person),
+                  // Información Personal
+                  _buildSectionTitle('Información Personal', Icons.person),
+                  const SizedBox(height: 16),
+
+                  // Email (read-only)
+                  TextFormField(
+                    initialValue: widget.user.email,
+                    enabled: false,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo Electrónico',
+                      hintText: 'No se puede editar',
+                      prefixIcon: Icon(Icons.email),
+                      filled: true,
+                      fillColor: Colors.grey,
+                    ),
+                  ),
+
                   const SizedBox(height: 16),
 
                   // First Name
@@ -236,19 +258,10 @@ class _EditUserFormState extends State<EditUserForm> {
                     },
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                  // Phone
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Teléfono',
-                      hintText: 'Ingrese el número de teléfono',
-                      prefixIcon: Icon(Icons.phone),
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-
+                  // Documento de Identidad
+                  _buildSectionTitle('Documento de Identidad', Icons.badge),
                   const SizedBox(height: 16),
 
                   // Document Type
@@ -279,6 +292,131 @@ class _EditUserFormState extends State<EditUserForm> {
                     },
                   ),
 
+                  const SizedBox(height: 16),
+
+                  // Document Number (editable)
+                  TextFormField(
+                    controller: _documentNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Número de Documento *',
+                      hintText: 'Ingrese el número de documento',
+                      prefixIcon: Icon(Icons.badge),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'El número de documento es requerido';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Información de Contacto
+                  _buildSectionTitle('Información de Contacto', Icons.contact_phone),
+                  const SizedBox(height: 16),
+
+                  // Phone
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: const InputDecoration(
+                      labelText: 'Teléfono',
+                      hintText: 'Ingrese el número de teléfono',
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // User Type
+                  DropdownButtonFormField<UserType>(
+                    value: _selectedUserType,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de Usuario *',
+                      prefixIcon: Icon(Icons.category),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: UserType.DOCENTE, child: Text('Docente')),
+                      DropdownMenuItem(value: UserType.ADMIN_STAFF, child: Text('Personal Administrativo')),
+                      DropdownMenuItem(value: UserType.ESTUDIANTE, child: Text('Estudiante')),
+                      DropdownMenuItem(value: UserType.ACUDIENTE, child: Text('Acudiente')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedUserType = value;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Seleccione un tipo de usuario';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // App Role
+                  DropdownButtonFormField<AppRole>(
+                    value: _selectedAppRole,
+                    decoration: const InputDecoration(
+                      labelText: 'Rol de Aplicación *',
+                      prefixIcon: Icon(Icons.security),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: AppRole.USER, child: Text('Usuario')),
+                      DropdownMenuItem(value: AppRole.ADMIN, child: Text('Administrador')),
+                      DropdownMenuItem(value: AppRole.SuperUser, child: Text('Super Usuario')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() {
+                          _selectedAppRole = value;
+                        });
+                      }
+                    },
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Seleccione un rol de aplicación';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Active Status (read-only display)
+                  ListTile(
+                    title: const Text('Estado del Usuario'),
+                    subtitle: Text(_isActive ? 'Usuario activo - puede acceder al sistema' : 'Usuario inactivo - no puede acceder al sistema'),
+                    leading: Icon(
+                      _isActive ? Icons.check_circle : Icons.cancel,
+                      color: _isActive ? Colors.green : Colors.red,
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: _isActive ? Colors.green : Colors.red,
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        _isActive ? 'ACTIVO' : 'INACTIVO',
+                        style: TextStyle(
+                          color: _isActive ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 24),
 
                   // Type-specific fields
@@ -294,6 +432,10 @@ class _EditUserFormState extends State<EditUserForm> {
                     _buildSectionTitle('Información del Estudiante', Icons.school),
                     const SizedBox(height: 16),
                     _buildStudentFields(),
+                  ] else if (_selectedUserType == UserType.ACUDIENTE) ...[
+                    _buildSectionTitle('Información del Acudiente', Icons.family_restroom),
+                    const SizedBox(height: 16),
+                    _buildAcudienteFields(),
                   ],
 
                   const SizedBox(height: 32),
@@ -398,71 +540,67 @@ class _EditUserFormState extends State<EditUserForm> {
             items: const [
               DropdownMenuItem(value: 'Matemáticas', child: Text('Matemáticas')),
               DropdownMenuItem(value: 'Estadística', child: Text('Estadística')),
-              DropdownMenuItem(value: 'Tecnología', child: Text('Tecnología')),
-              DropdownMenuItem(value: 'Castellano', child: Text('Castellano')),
-              DropdownMenuItem(value: 'Cátedra Gabo', child: Text('Cátedra Gabo')),
-              DropdownMenuItem(value: 'Biología', child: Text('Biología')),
-              DropdownMenuItem(value: 'Química', child: Text('Química')),
-              DropdownMenuItem(value: 'Física', child: Text('Física')),
+              DropdownMenuItem(value: 'Ciencias', child: Text('Ciencias')),
+              DropdownMenuItem(value: 'Lenguaje', child: Text('Lenguaje')),
               DropdownMenuItem(value: 'Sociales', child: Text('Sociales')),
-              DropdownMenuItem(value: 'Religión', child: Text('Religión')),
-              DropdownMenuItem(value: 'Ética y valores', child: Text('Ética y valores')),
-              DropdownMenuItem(value: 'Filosofía', child: Text('Filosofía')),
-              DropdownMenuItem(value: 'Educación física', child: Text('Educación física')),
-              DropdownMenuItem(value: 'Artes escénicas', child: Text('Artes escénicas')),
-              DropdownMenuItem(value: 'Música', child: Text('Música')),
-              DropdownMenuItem(value: 'Artes plásticas', child: Text('Artes plásticas')),
               DropdownMenuItem(value: 'Inglés', child: Text('Inglés')),
-              DropdownMenuItem(value: 'Otro', child: Text('Otro')),
+              DropdownMenuItem(value: 'Arte', child: Text('Arte')),
+              DropdownMenuItem(value: 'Educación Física', child: Text('Educación Física')),
+              DropdownMenuItem(value: 'Tecnología', child: Text('Tecnología')),
+              DropdownMenuItem(value: 'Religión', child: Text('Religión')),
+              DropdownMenuItem(value: 'Ética', child: Text('Ética')),
+              DropdownMenuItem(value: 'Filosofía', child: Text('Filosofía')),
             ],
             onChanged: (value) {
-              if (value != null) {
-                setState(() {
-                  _areaOfStudy = value;
-                });
-              }
+              setState(() {
+                _areaOfStudy = value ?? '';
+              });
             },
             validator: (value) {
-              if (value == null || value.trim().isEmpty) {
+              if (_schoolPosition == SchoolPosition.DOCENTE && (value == null || value.isEmpty)) {
                 return 'Seleccione un área de estudio';
               }
               return null;
             },
           ),
 
-          if (_areaOfStudy == 'Otro') ...[
-            const SizedBox(height: 16),
-            TextFormField(
-              decoration: const InputDecoration(
-                labelText: 'Especifique Área de Estudio *',
-                hintText: 'Describa el área de estudio',
-                prefixIcon: Icon(Icons.edit),
-              ),
-              onChanged: (value) => _areaOfStudy = value,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Especifique el área de estudio';
-                }
-                return null;
-              },
-            ),
-          ],
-
           const SizedBox(height: 16),
         ],
+
+        // Grade Level Assignment
+        DropdownButtonFormField<GradeLevel>(
+          value: _assignedToGradeLevel,
+          decoration: const InputDecoration(
+            labelText: 'Nivel Asignado',
+            prefixIcon: Icon(Icons.grade),
+          ),
+          items: const [
+            DropdownMenuItem(value: GradeLevel.PRIMARIA, child: Text('Primaria')),
+            DropdownMenuItem(value: GradeLevel.BACHILLERATO, child: Text('Bachillerato')),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _assignedToGradeLevel = value;
+              });
+            }
+          },
+        ),
+
+        const SizedBox(height: 16),
 
         // Education Level
         DropdownButtonFormField<EducationLevel>(
           value: _educationLevel,
           decoration: const InputDecoration(
-            labelText: 'Nivel de Educación *',
+            labelText: 'Nivel de Educación',
             prefixIcon: Icon(Icons.school),
           ),
-          items: const [
-            DropdownMenuItem(value: EducationLevel.PROFESIONAL, child: Text('Profesional')),
-            DropdownMenuItem(value: EducationLevel.MAESTRIA, child: Text('Maestría')),
-            DropdownMenuItem(value: EducationLevel.OTRO, child: Text('Otro')),
-          ],
+                      items: const [
+              DropdownMenuItem(value: EducationLevel.PROFESIONAL, child: Text('Profesional')),
+              DropdownMenuItem(value: EducationLevel.MAESTRIA, child: Text('Maestría')),
+              DropdownMenuItem(value: EducationLevel.OTRO, child: Text('Otro')),
+            ],
           onChanged: (value) {
             if (value != null) {
               setState(() {
@@ -470,29 +608,18 @@ class _EditUserFormState extends State<EditUserForm> {
               });
             }
           },
-          validator: (value) {
-            if (value == null) {
-              return 'Seleccione un nivel de educación';
-            }
-            return null;
-          },
         ),
 
         if (_educationLevel == EducationLevel.OTRO) ...[
           const SizedBox(height: 16),
           TextFormField(
+            initialValue: _educationLevelOther,
             decoration: const InputDecoration(
-              labelText: 'Especifique Nivel de Educación *',
-              hintText: 'Describa el nivel de educación',
+              labelText: 'Especifique Nivel de Educación',
+              hintText: 'Ingrese el nivel de educación',
               prefixIcon: Icon(Icons.edit),
             ),
             onChanged: (value) => _educationLevelOther = value,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Especifique el nivel de educación';
-              }
-              return null;
-            },
           ),
         ],
 
@@ -500,6 +627,7 @@ class _EditUserFormState extends State<EditUserForm> {
 
         // Special Assignment
         TextFormField(
+          initialValue: _specialAssignment,
           decoration: const InputDecoration(
             labelText: 'Asignación Especial',
             hintText: 'Asignación especial (opcional)',
@@ -530,6 +658,7 @@ class _EditUserFormState extends State<EditUserForm> {
     return Column(
       children: [
         TextFormField(
+          initialValue: _profession,
           decoration: const InputDecoration(
             labelText: 'Profesión',
             hintText: 'Ingrese la profesión',
@@ -582,8 +711,41 @@ class _EditUserFormState extends State<EditUserForm> {
     );
   }
 
+  Widget _buildAcudienteFields() {
+    return Column(
+      children: [
+        // Number of children represented
+        DropdownButtonFormField<int>(
+          value: _representedChildrenCount,
+          decoration: const InputDecoration(
+            labelText: 'Número de Estudiantes a Cargo',
+            prefixIcon: Icon(Icons.family_restroom),
+          ),
+          items: List.generate(10, (index) => index + 1).map((count) {
+            return DropdownMenuItem(
+              value: count,
+              child: Text('$count ${count == 1 ? 'estudiante' : 'estudiantes'}'),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) {
+              setState(() {
+                _representedChildrenCount = value;
+              });
+            }
+          },
+        ),
+      ],
+    );
+  }
+
   void _submitForm() async {
+    print('EditUserForm: Iniciando _submitForm');
+    print('EditUserForm: Estado actual del usuario - isActive: ${widget.user.isActive}');
+    print('EditUserForm: Nuevo estado deseado - isActive: $_isActive');
+    
     if (!_formKey.currentState!.validate()) {
+      print('EditUserForm: Validación del formulario falló');
       return;
     }
 
@@ -592,6 +754,7 @@ class _EditUserFormState extends State<EditUserForm> {
     });
 
     try {
+      print('EditUserForm: Creando TypeSpecificData...');
       // Create TypeSpecificData based on user type
       TypeSpecificData? typeSpecificData;
       
@@ -619,11 +782,13 @@ class _EditUserFormState extends State<EditUserForm> {
           );
           break;
         case UserType.ACUDIENTE:
-          // Keep existing data for acudiente
-          typeSpecificData = widget.user.typeSpecificData;
+          typeSpecificData = TypeSpecificData(
+            representedChildrenCount: _representedChildrenCount,
+          );
           break;
       }
 
+      print('EditUserForm: Creando UserModel actualizado...');
       // Create updated user model
       final updatedUser = UserModel(
         uid: widget.user.uid,
@@ -631,31 +796,40 @@ class _EditUserFormState extends State<EditUserForm> {
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
         documentType: _selectedDocumentType,
-        documentNumber: widget.user.documentNumber,
+        documentNumber: _documentNumberController.text.trim(),
         phone: _phoneController.text.trim(),
         userType: _selectedUserType,
         appRole: _selectedAppRole,
         status: widget.user.status,
-        isActive: widget.user.isActive,
+        isActive: _isActive,
         provisionalPasswordSet: widget.user.provisionalPasswordSet,
         createdAt: widget.user.createdAt,
         updatedAt: DateTime.now(),
         typeSpecificData: typeSpecificData,
       );
 
+      print('EditUserForm: UserModel creado - isActive: ${updatedUser.isActive}');
+
       // Update user using UserService
       final updates = {
         'firstName': updatedUser.firstName,
         'lastName': updatedUser.lastName,
+        'documentNumber': updatedUser.documentNumber,
         'phone': updatedUser.phone,
         'documentType': updatedUser.documentType.name,
         'userType': updatedUser.userType.name,
         'appRole': updatedUser.appRole.name,
+        'isActive': updatedUser.isActive,
         'updatedAt': updatedUser.updatedAt.toIso8601String(),
         'typeSpecificData': updatedUser.typeSpecificData?.toMap(),
       };
       
+      print('EditUserForm: Enviando updates al UserService:');
+      print('EditUserForm: Updates: $updates');
+      print('EditUserForm: isActive en updates: ${updates['isActive']}');
+      
       await _userService.updateUser(updatedUser.uid, updates);
+      print('EditUserForm: UserService.updateUser completado');
 
       if (mounted) {
         // Refresh the data provider

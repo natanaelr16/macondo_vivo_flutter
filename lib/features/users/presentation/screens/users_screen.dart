@@ -142,7 +142,7 @@ class _UsersScreenState extends State<UsersScreen> {
                   PopupMenuItem(
                     value: 'role_user',
                     child: Row(
-                      children: [
+        children: [
                         Icon(
                           Icons.person,
                           size: 16,
@@ -279,9 +279,9 @@ class _UsersScreenState extends State<UsersScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateUserDialog(context),
-        backgroundColor: primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
+            onPressed: () => _showCreateUserDialog(context),
+            backgroundColor: primaryColor,
+            child: const Icon(Icons.add, color: Colors.white),
       ),
       body: Consumer2<DataProvider, AuthProvider>(
         builder: (context, dataProvider, authProvider, child) {
@@ -455,58 +455,58 @@ class _UsersScreenState extends State<UsersScreen> {
                       children: [
                         Expanded(
                           child: _buildTabChip(
-                            label: 'Administrativo',
-                            selected: _selectedUserType == UserType.ADMIN_STAFF,
+                          label: 'Administrativo',
+                          selected: _selectedUserType == UserType.ADMIN_STAFF,
                             onTap: () {
-                              setState(() {
+                            setState(() {
                                 _selectedUserType = UserType.ADMIN_STAFF;
-                                _applyFilters(users);
-                              });
-                            },
-                            color: Colors.orange,
-                          ),
+                              _applyFilters(users);
+                            });
+                          },
+                          color: Colors.orange,
+                        ),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: _buildTabChip(
-                            label: 'Docentes',
-                            selected: _selectedUserType == UserType.DOCENTE,
+                          label: 'Docentes',
+                          selected: _selectedUserType == UserType.DOCENTE,
                             onTap: () {
-                              setState(() {
+                            setState(() {
                                 _selectedUserType = UserType.DOCENTE;
-                                _applyFilters(users);
-                              });
-                            },
-                            color: Colors.blue,
-                          ),
+                              _applyFilters(users);
+                            });
+                          },
+                          color: Colors.blue,
+                        ),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: _buildTabChip(
-                            label: 'Estudiantes',
-                            selected: _selectedUserType == UserType.ESTUDIANTE,
+                          label: 'Estudiantes',
+                          selected: _selectedUserType == UserType.ESTUDIANTE,
                             onTap: () {
-                              setState(() {
+                            setState(() {
                                 _selectedUserType = UserType.ESTUDIANTE;
-                                _applyFilters(users);
-                              });
-                            },
-                            color: Colors.green,
-                          ),
+                              _applyFilters(users);
+                            });
+                          },
+                          color: Colors.green,
+                        ),
                         ),
                         const SizedBox(width: 6),
                         Expanded(
                           child: _buildTabChip(
-                            label: 'Acudientes',
-                            selected: _selectedUserType == UserType.ACUDIENTE,
+                          label: 'Acudientes',
+                          selected: _selectedUserType == UserType.ACUDIENTE,
                             onTap: () {
-                              setState(() {
+                            setState(() {
                                 _selectedUserType = UserType.ACUDIENTE;
-                                _applyFilters(users);
-                              });
-                            },
-                            color: Colors.purple,
-                          ),
+                              _applyFilters(users);
+                            });
+                          },
+                          color: Colors.purple,
+                        ),
                         ),
                       ],
                     ),
@@ -519,11 +519,11 @@ class _UsersScreenState extends State<UsersScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
                         child: Text(
-                          '${_filteredUsers.length} de ${users.length} usuarios',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: textSecondaryColor,
-                          ),
+                              '${_filteredUsers.length} de ${users.length} usuarios',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textSecondaryColor,
+                              ),
                         ),
                       ),
                   ],
@@ -821,7 +821,7 @@ class _UsersScreenState extends State<UsersScreen> {
 
       print('UsersScreen: Usuario confirmó la operación, mostrando indicador de carga');
       // Mostrar indicador de carga
-      showDialog(
+    showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
@@ -860,6 +860,119 @@ class _UsersScreenState extends State<UsersScreen> {
 
     } catch (e) {
       print('UsersScreen: Error en toggleUserStatus: $e');
+      // Cerrar indicador de carga si está abierto
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+
+      // Mostrar mensaje de error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al cambiar estado: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // Método específico para toggle dentro del modal con actualización inmediata
+  Future<void> _toggleUserStatusInModal(UserModel user, DataProvider dataProvider) async {
+    try {
+      print('UsersScreen: Iniciando toggleUserStatusInModal para usuario: ${user.email}');
+      print('UsersScreen: Estado actual del usuario: ${user.isActive}');
+      final newStatus = !user.isActive;
+      print('UsersScreen: Nuevo estado deseado: $newStatus');
+      final statusText = newStatus ? 'activado' : 'desactivado';
+      
+      // Mostrar diálogo de confirmación
+      final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+          title: Text('${newStatus ? 'Activar' : 'Desactivar'} Usuario'),
+          content: Text(
+            '¿Estás seguro de que quieres ${newStatus ? 'activar' : 'desactivar'} a ${user.name}?',
+          ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: newStatus ? Colors.green : Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(newStatus ? 'Activar' : 'Desactivar'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) {
+        print('UsersScreen: Usuario canceló la operación');
+        return;
+      }
+
+      print('UsersScreen: Usuario confirmó la operación, mostrando indicador de carga');
+      // Mostrar indicador de carga
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      print('UsersScreen: Llamando a dataProvider.toggleUserStatus con uid: ${user.uid}, newStatus: $newStatus');
+      // Llamar al servicio para cambiar el estado
+      try {
+        await dataProvider.toggleUserStatus(user.uid, newStatus);
+        print('UsersScreen: dataProvider.toggleUserStatus completado exitosamente');
+      } catch (e) {
+        print('UsersScreen: ❌ Error en dataProvider.toggleUserStatus: $e');
+        // Cerrar indicador de carga
+        Navigator.of(context).pop();
+        // Mostrar mensaje de error
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cambiar estado: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+      
+      print('UsersScreen: Operación completada, cerrando indicador de carga');
+      // Cerrar indicador de carga
+      Navigator.of(context).pop();
+
+      // Actualizar el estado local inmediatamente sin recargar desde Firestore
+      print('UsersScreen: Actualizando estado local inmediatamente');
+      dataProvider.updateUserStatusLocally(user.uid, newStatus);
+      print('UsersScreen: Estado local actualizado, verificando cambio...');
+      
+      // Verificar que el cambio se aplicó correctamente
+      final updatedUser = dataProvider.users.firstWhere(
+        (u) => u.uid == user.uid,
+        orElse: () => user,
+      );
+      print('UsersScreen: Usuario después de actualización local: ${updatedUser.email}, isActive: ${updatedUser.isActive}');
+
+      // El modal se actualizará automáticamente gracias al Consumer<DataProvider>
+      print('UsersScreen: Modal will update automatically via Consumer<DataProvider>');
+
+      // Mostrar mensaje de éxito
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Usuario ${statusText} exitosamente'),
+          backgroundColor: newStatus ? Colors.green : Colors.orange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+    } catch (e) {
+      print('UsersScreen: Error en toggleUserStatusInModal: $e');
       // Cerrar indicador de carga si está abierto
       if (Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
@@ -923,11 +1036,11 @@ class _UsersScreenState extends State<UsersScreen> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Eliminar'),
-            ),
-          ],
-        ),
-      );
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
 
       if (confirmed != true) {
         print('UsersScreen: Usuario canceló la eliminación');
@@ -953,6 +1066,9 @@ class _UsersScreenState extends State<UsersScreen> {
       // Actualizar el estado local inmediatamente
       final updatedUsers = dataProvider.users.where((u) => u.uid != user.uid).toList();
       dataProvider.updateUsersLocally(updatedUsers);
+
+      // Cerrar el modal de detalles si está abierto
+      Navigator.of(context).pop();
 
       // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1020,8 +1136,8 @@ class _UsersScreenState extends State<UsersScreen> {
 
       print('UsersScreen: Usuario confirmó el reset, mostrando indicador de carga');
       // Mostrar indicador de carga
-      showDialog(
-        context: context,
+    showDialog(
+      context: context,
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
@@ -1362,7 +1478,20 @@ class _UsersScreenState extends State<UsersScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (context) => Consumer<DataProvider>(
+        builder: (context, dataProvider, child) {
+          print('UsersScreen: Consumer<DataProvider> rebuilding...');
+          // Obtener el usuario actualizado del DataProvider
+          final currentUser = dataProvider.users.firstWhere(
+            (u) => u.uid == user.uid,
+            orElse: () => user,
+          );
+          
+          print('UsersScreen: Modal rebuilding with user: ${currentUser.email}, isActive: ${currentUser.isActive}, uid: ${currentUser.uid}');
+          print('UsersScreen: Modal - Total users in DataProvider: ${dataProvider.users.length}');
+          print('UsersScreen: Modal - Users with same UID: ${dataProvider.users.where((u) => u.uid == currentUser.uid).length}');
+          
+          return Container(
         height: MediaQuery.of(context).size.height * 0.8,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
@@ -1384,74 +1513,74 @@ class _UsersScreenState extends State<UsersScreen> {
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Detalles del Usuario',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Mostrar insignia de verificado o llave según el estado
-                      if (user.provisionalPasswordSet == false) ...[
-                        // Usuario verificado - mostrar insignia
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.green.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.green.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.verified,
-                                size: 16,
-                                color: Colors.green,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Verificado',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.green,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ] else ...[
-                        // Usuario no verificado - mostrar llave
-                        IconButton(
-                          icon: Icon(
-                            Icons.vpn_key,
-                            color: Colors.orange,
-                          ),
-                          tooltip: 'Ver contraseña provisional',
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                title: const Text('Contraseña Provisional'),
-                                content: ProvisionalPasswordDisplay(
-                                  userId: user.uid,
-                                  provisionalPasswordSet: user.provisionalPasswordSet,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ],
+                  Text(
+                    'Detalles del Usuario',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
-                  Row(
+                          const SizedBox(width: 8),
+                          // Mostrar insignia de verificado o llave según el estado
+                          if (currentUser.provisionalPasswordSet == false) ...[
+                            // Usuario verificado - mostrar insignia
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
                     children: [
+                                  Icon(
+                                    Icons.verified,
+                                    size: 16,
+                                    color: Colors.green,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Verificado',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ] else ...[
+                            // Usuario no verificado - mostrar llave
+                      IconButton(
+                              icon: Icon(
+                                Icons.vpn_key,
+                                color: Colors.orange,
+                              ),
+                              tooltip: 'Ver contraseña provisional',
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text('Contraseña Provisional'),
+                                    content: ProvisionalPasswordDisplay(
+                                      userId: currentUser.uid,
+                                      provisionalPasswordSet: currentUser.provisionalPasswordSet,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ],
+                      ),
+                      Row(
+                        children: [
                       IconButton(
                         onPressed: () => Navigator.of(context).pop(),
                         icon: const Icon(Icons.close),
@@ -1474,97 +1603,88 @@ class _UsersScreenState extends State<UsersScreen> {
                     _buildInfoSection(
                       'Información Básica',
                       [
-                        _buildInfoRow('Nombre', user.name),
-                        _buildInfoRow('Email', user.email),
-                        _buildInfoRow('Documento', '${_getDocumentTypeDisplayName(user.documentType)}: ${user.documentNumber}'),
-                        if (user.phone != null && user.phone!.isNotEmpty)
-                          _buildInfoRow('Teléfono', user.phone!),
-                      ],
-                    ),
-                    
-                    // Información específica según el tipo
-                    if (user.typeSpecificData != null) ...[
-                      const SizedBox(height: 24),
-                      _buildTypeSpecificSection(user),
-                    ],
-                    
+                            _buildInfoRow('Nombre', currentUser.name),
+                            _buildInfoRow('Email', currentUser.email),
+                            _buildInfoRow('Documento', '${_getDocumentTypeDisplayName(currentUser.documentType)}: ${currentUser.documentNumber}'),
+                            if (currentUser.phone != null && currentUser.phone!.isNotEmpty)
+                              _buildInfoRow('Teléfono', currentUser.phone!),
+                          ],
+                        ),
+                        
+                        // Información específica según el tipo
+                        if (currentUser.typeSpecificData != null) ...[
                     const SizedBox(height: 24),
+                          _buildTypeSpecificSection(currentUser),
+                        ],
                     
-                    // Información del sistema (al final)
+                        const SizedBox(height: 24),
+                        
+                        // Información del sistema (al final)
                     _buildInfoSection(
                       'Información del Sistema',
                       [
-                        _buildInfoRow('Tipo de Usuario', _getUserTypeDisplayName(user.userType)),
-                        _buildInfoRow('Rol', _getRoleDisplayName(user.appRole.name)),
-                        _buildInfoRow('Estado', user.isActive ? 'Activo' : 'Inactivo'),
-                        _buildInfoRow('Verificación', user.provisionalPasswordSet == false ? 'Verificado' : 'Pendiente de verificación'),
-                        _buildInfoRow('Fecha de Creación', _formatDate(user.createdAt)),
-                        _buildInfoRow('Última Actualización', _formatDate(user.updatedAt)),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Botones de acción
-                    Column(
-                      children: [
-                        // Botón de Reset Contraseña (más pequeño)
-                        SizedBox(
-                          width: 150,
-                          child: ElevatedButton.icon(
-                            onPressed: () => _resetUserPassword(user, dataProvider),
-                            icon: const Icon(Icons.vpn_key, size: 16),
-                            label: const Text(
-                              'Reset Password',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.orange,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              elevation: 1,
-                            ),
-                          ),
+                            _buildInfoRow('Tipo de Usuario', _getUserTypeDisplayName(currentUser.userType)),
+                            _buildInfoRow('Rol', _getRoleDisplayName(currentUser.appRole.name)),
+                            _buildInfoRow('Estado', currentUser.isActive ? 'Activo' : 'Inactivo'),
+                            _buildInfoRow('Verificación', currentUser.provisionalPasswordSet == false ? 'Verificado' : 'Pendiente de verificación'),
+                            _buildInfoRow('Fecha de Creación', _formatDate(currentUser.createdAt)),
+                            _buildInfoRow('Última Actualización', _formatDate(currentUser.updatedAt)),
+                          ],
                         ),
-                        const SizedBox(height: 16),
                         
-                        // Botones de acción como iconos
+                      const SizedBox(height: 24),
+                        
+                        // Botones de acción en una sola línea
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
+                      children: [
+                            // Botón de Reset Contraseña
+                            ElevatedButton.icon(
+                              onPressed: () => _resetUserPassword(currentUser, dataProvider),
+                              icon: const Icon(Icons.vpn_key, size: 16),
+                              label: const Text(
+                                'Reset Password',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                elevation: 1,
+                              ),
+                            ),
+                            
                             // Botón Editar
                             _buildActionIconButton(
                               icon: Icons.edit,
                               color: Colors.blue,
                               tooltip: 'Editar usuario',
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                _showEditUserDialog(context, user);
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                                _showEditUserDialog(context, currentUser);
                               },
                             ),
                             
                             // Botón Activar/Desactivar
                             _buildActionIconButton(
-                              icon: user.isActive ? Icons.block : Icons.check_circle,
-                              color: user.isActive ? Colors.red : Colors.green,
-                              tooltip: user.isActive ? 'Desactivar usuario' : 'Activar usuario',
-                              onPressed: () => _toggleUserStatus(user, dataProvider),
+                              icon: currentUser.isActive ? Icons.block : Icons.check_circle,
+                              color: currentUser.isActive ? Colors.red : Colors.green,
+                              tooltip: currentUser.isActive ? 'Desactivar usuario' : 'Activar usuario',
+                              onPressed: () => _toggleUserStatusInModal(currentUser, dataProvider),
                             ),
                             
                             // Botón Eliminar (solo si no es el usuario actual)
-                            if (_canDeleteUser(user)) ...[
+                            if (_canDeleteUser(currentUser)) ...[
                               _buildActionIconButton(
                                 icon: Icons.delete,
                                 color: Colors.red,
                                 tooltip: 'Eliminar usuario',
-                                onPressed: () => _deleteUser(user, dataProvider),
+                                onPressed: () => _deleteUser(currentUser, dataProvider),
                               ),
                             ],
-                          ],
-                        ),
                       ],
                     ),
                   ],
@@ -1573,6 +1693,8 @@ class _UsersScreenState extends State<UsersScreen> {
             ),
           ],
         ),
+          );
+        },
       ),
     );
   }

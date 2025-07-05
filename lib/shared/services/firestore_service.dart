@@ -385,36 +385,64 @@ class FirestoreService {
   /// Actualizar usuario
   Future<void> updateUser(String uid, Map<String, dynamic> updates) async {
     try {
+      print('FirestoreService: Iniciando updateUser para UID: $uid');
+      print('FirestoreService: Updates recibidos: $updates');
+      print('FirestoreService: isActive en updates: ${updates['isActive']}');
+      
       // Validar permisos
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
+        print('FirestoreService: ❌ Usuario no autenticado');
         throw Exception('Usuario no autenticado');
       }
       
+      print('FirestoreService: Usuario actual autenticado: ${currentUser.email}');
+      
       final currentUserDoc = await _firestore.collection(usersCollection).doc(currentUser.uid).get();
       if (!currentUserDoc.exists) {
+        print('FirestoreService: ❌ Usuario actual no encontrado en Firestore');
         throw Exception('Usuario actual no encontrado');
       }
       
       final currentUserModel = UserModel.fromFirestore(currentUserDoc);
+      print('FirestoreService: Usuario actual cargado: ${currentUserModel.email}');
+      
       final targetUser = await getUserById(uid);
       
       if (targetUser == null) {
+        print('FirestoreService: ❌ Usuario a actualizar no encontrado');
         throw Exception('Usuario a actualizar no encontrado');
       }
       
+      print('FirestoreService: Usuario objetivo cargado: ${targetUser.email}, isActive actual: ${targetUser.isActive}');
+      
       if (!PermissionManager.canEditUser(currentUserModel, targetUser)) {
+        print('FirestoreService: ❌ No tiene permisos para editar este usuario');
         throw Exception('No tiene permisos para editar este usuario');
       }
+      
+      print('FirestoreService: ✅ Permisos validados correctamente');
       
       // Agregar timestamp de actualización
       updates['updatedAt'] = FieldValue.serverTimestamp();
       updates['updatedBy'] = currentUser.uid;
       
+      print('FirestoreService: Updates finales antes de enviar a Firestore: $updates');
+      print('FirestoreService: isActive final: ${updates['isActive']}');
+      
+      // Realizar la actualización en Firestore
       await _firestore.collection(usersCollection).doc(uid).update(updates);
       
+      print('FirestoreService: ✅ Actualización en Firestore completada exitosamente');
+      
+      // Verificar que la actualización se realizó correctamente
+      final updatedDoc = await _firestore.collection(usersCollection).doc(uid).get();
+      final updatedUser = UserModel.fromFirestore(updatedDoc);
+      print('FirestoreService: Usuario después de actualización: ${updatedUser.email}, isActive: ${updatedUser.isActive}');
+      
     } catch (e) {
-      print('Error actualizando usuario $uid: $e');
+      print('FirestoreService: ❌ Error actualizando usuario $uid: $e');
+      print('FirestoreService: Stack trace: ${e.toString()}');
       throw Exception('Error actualizando usuario: $e');
     }
   }
