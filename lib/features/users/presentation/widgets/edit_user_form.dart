@@ -656,6 +656,38 @@ class _EditUserFormState extends State<EditUserForm> {
           },
           controlAffinity: ListTileControlAffinity.leading,
         ),
+
+        const SizedBox(height: 16),
+
+        // Teacher Roles
+        _buildSectionTitle('Roles Adicionales', Icons.assignment_ind),
+        const SizedBox(height: 8),
+        Text(
+          'Selecciona los roles adicionales que desempeña el docente:',
+          style: TextStyle(
+            fontSize: 14,
+            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+          ),
+        ),
+        const SizedBox(height: 16),
+        
+        // Teacher Roles Grid
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 8,
+          childAspectRatio: 2.5,
+          children: [
+            _buildRoleToggleButton('Representante Consejo Académico', TeacherRole.REPRESENTANTE_CONSEJO_ACADEMICO),
+            _buildRoleToggleButton('Representante Comité Convivencia', TeacherRole.REPRESENTANTE_COMITE_CONVIVENCIA),
+            _buildRoleToggleButton('Representante Consejo Directivo', TeacherRole.REPRESENTANTE_CONSEJO_DIRECTIVO),
+            _buildRoleToggleButton('Líder de Proyecto', TeacherRole.LIDER_PROYECTO),
+            _buildRoleToggleButton('Líder de Área', TeacherRole.LIDER_AREA),
+            _buildRoleToggleButton('Director de Grupo', TeacherRole.DIRECTOR_GRUPO),
+          ],
+        ),
       ],
     );
   }
@@ -842,17 +874,8 @@ class _EditUserFormState extends State<EditUserForm> {
         final dataProvider = context.read<DataProvider>();
         await dataProvider.loadUsers();
 
-        // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Usuario actualizado exitosamente'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-
-        // Close the form
-        Navigator.of(context).pop();
+        // Close the form first
+        Navigator.of(context).pop('success');
       }
     } catch (e) {
       if (mounted) {
@@ -879,5 +902,58 @@ class _EditUserFormState extends State<EditUserForm> {
         });
       }
     }
+  }
+
+  Widget _buildRoleToggleButton(String label, TeacherRole role) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          if (_teacherRoles.contains(role)) {
+            _teacherRoles.remove(role);
+          } else {
+            _teacherRoles.add(role);
+          }
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: _teacherRoles.contains(role) 
+              ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+              : Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+            color: _teacherRoles.contains(role) 
+                ? Theme.of(context).colorScheme.primary
+                : Colors.grey,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            Icon(
+              _teacherRoles.contains(role) ? Icons.check_circle : Icons.circle_outlined,
+              color: _teacherRoles.contains(role) 
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.grey,
+              size: 16,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: _teacherRoles.contains(role) 
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 } 

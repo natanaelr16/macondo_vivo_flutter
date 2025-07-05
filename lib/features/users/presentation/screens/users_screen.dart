@@ -1714,7 +1714,18 @@ class _UsersScreenState extends State<UsersScreen> {
       MaterialPageRoute(
         builder: (context) => EditUserForm(user: user),
       ),
-    );
+    ).then((result) {
+      // Manejar el resultado del formulario de edición
+      if (result == 'success') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Usuario actualizado exitosamente'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    });
   }
 
   String _getUserTypeDisplayName(UserType userType) {

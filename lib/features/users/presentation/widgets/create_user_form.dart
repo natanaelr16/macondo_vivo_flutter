@@ -5,6 +5,7 @@ import 'dart:async';
 import '../../../../shared/models/user_model.dart';
 import '../../../../shared/services/user_service.dart';
 import '../../../../shared/providers/auth_provider.dart';
+import '../../../../shared/providers/data_provider.dart';
 import '../../../../core/widgets/provisional_password_display.dart';
 
 
@@ -1322,6 +1323,10 @@ class _CreateUserFormState extends State<CreateUserForm> {
       final result = await userService.createUser(user);
 
       if (mounted) {
+        // Actualizar la lista de usuarios en el DataProvider
+        final dataProvider = Provider.of<DataProvider>(context, listen: false);
+        await dataProvider.loadUsers();
+        
         // Show success dialog with provisional password
         _showSuccessDialog(
           user: result.user,
