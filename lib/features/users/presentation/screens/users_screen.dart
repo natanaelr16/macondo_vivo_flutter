@@ -89,7 +89,17 @@ class _UsersScreenState extends State<UsersScreen> {
       backgroundColor: backgroundColor,
       bottomNavigationBar: const BottomNavigation(currentRoute: '/users'),
       appBar: AppBar(
-        title: const Text('Gestión de Usuarios'),
+        centerTitle: false,
+        title: const Padding(
+          padding: EdgeInsets.only(left: 16),
+          child: Text(
+            'Gestión de Usuarios',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
+        ),
         elevation: 0,
         backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
