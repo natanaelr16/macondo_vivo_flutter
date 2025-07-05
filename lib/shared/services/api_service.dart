@@ -148,23 +148,51 @@ class ApiService {
 
       print('ApiService: Response status code: ${response.statusCode}');
       print('ApiService: Response headers: ${response.headers}');
-      print('ApiService: Response body: ${response.body}');
+      print('ApiService: Response body length: ${response.body.length}');
+      print('ApiService: Response body: "${response.body}"');
 
       if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        print('ApiService: ✅ Parsed response: $responseData');
-        print('ApiService: ✅ Success field: ${responseData['success']}');
-        print('ApiService: ✅ Message field: ${responseData['message']}');
-        return responseData;
+        // Verificar que la respuesta no esté vacía
+        if (response.body.isEmpty) {
+          print('ApiService: ❌ Empty response body');
+          throw Exception('Respuesta vacía del servidor');
+        }
+        
+        try {
+          final responseData = jsonDecode(response.body);
+          print('ApiService: ✅ Parsed response: $responseData');
+          print('ApiService: ✅ Success field: ${responseData['success']}');
+          print('ApiService: ✅ Message field: ${responseData['message']}');
+          return responseData;
+        } catch (jsonError) {
+          print('ApiService: ❌ JSON decode error: $jsonError');
+          print('ApiService: ❌ Raw response body: "${response.body}"');
+          throw Exception('Error al procesar respuesta del servidor: $jsonError');
+        }
       } else {
-        final errorData = jsonDecode(response.body);
-        print('ApiService: ❌ Error response: $errorData');
-        print('ApiService: ❌ Error message: ${errorData['message']}');
-        throw Exception(errorData['message'] ?? 'Error al cambiar estado del usuario');
+        // Manejar respuesta de error
+        if (response.body.isEmpty) {
+          print('ApiService: ❌ Empty error response body');
+          throw Exception('Error del servidor: ${response.statusCode}');
+        }
+        
+        try {
+          final errorData = jsonDecode(response.body);
+          print('ApiService: ❌ Error response: $errorData');
+          print('ApiService: ❌ Error message: ${errorData['message']}');
+          throw Exception(errorData['message'] ?? 'Error al cambiar estado del usuario');
+        } catch (jsonError) {
+          print('ApiService: ❌ Error JSON decode error: $jsonError');
+          print('ApiService: ❌ Raw error response body: "${response.body}"');
+          throw Exception('Error del servidor: ${response.statusCode}');
+        }
       }
     } catch (e) {
       print('ApiService: ❌ Exception: $e');
       print('ApiService: ❌ Exception type: ${e.runtimeType}');
+      if (e.toString().contains('FormatException')) {
+        throw Exception('Error de formato en la respuesta del servidor');
+      }
       throw Exception('Error de conexión: $e');
     }
   }

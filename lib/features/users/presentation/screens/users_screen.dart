@@ -947,20 +947,21 @@ class _UsersScreenState extends State<UsersScreen> {
       // Cerrar indicador de carga
       Navigator.of(context).pop();
 
-      // Actualizar el estado local inmediatamente sin recargar desde Firestore
-      print('UsersScreen: Actualizando estado local inmediatamente');
-      dataProvider.updateUserStatusLocally(user.uid, newStatus);
-      print('UsersScreen: Estado local actualizado, verificando cambio...');
-      
       // Verificar que el cambio se aplicó correctamente
       final updatedUser = dataProvider.users.firstWhere(
         (u) => u.uid == user.uid,
         orElse: () => user,
       );
-      print('UsersScreen: Usuario después de actualización local: ${updatedUser.email}, isActive: ${updatedUser.isActive}');
+      print('UsersScreen: Usuario después de actualización: ${updatedUser.email}, isActive: ${updatedUser.isActive}');
 
-      // El modal se actualizará automáticamente gracias al Consumer<DataProvider>
-      print('UsersScreen: Modal will update automatically via Consumer<DataProvider>');
+      // Forzar la actualización del modal cerrando y abriendo nuevamente
+      print('UsersScreen: Forzando actualización del modal...');
+      Navigator.of(context).pop(); // Cerrar el modal actual
+      
+      // Abrir el modal nuevamente con el usuario actualizado
+      _showUserDetails(context, updatedUser, dataProvider);
+      
+      print('UsersScreen: Modal actualizado con el nuevo estado');
 
       // Mostrar mensaje de éxito
       ScaffoldMessenger.of(context).showSnackBar(

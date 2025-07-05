@@ -327,6 +327,10 @@ class _EditUserFormState extends State<EditUserForm> {
                     keyboardType: TextInputType.phone,
                   ),
 
+                  const SizedBox(height: 24),
+
+                  // Roles y Permisos
+                  _buildSectionTitle('Roles y Permisos', Icons.security),
                   const SizedBox(height: 16),
 
                   // User Type
@@ -386,6 +390,29 @@ class _EditUserFormState extends State<EditUserForm> {
                     },
                   ),
 
+                  // Type-specific fields
+                  if (_selectedUserType == UserType.DOCENTE) ...[
+                    _buildSectionTitle('Información del Docente', Icons.school),
+                    const SizedBox(height: 16),
+                    _buildTeacherFields(),
+                  ] else if (_selectedUserType == UserType.ADMIN_STAFF) ...[
+                    _buildSectionTitle('Información Administrativa', Icons.business),
+                    const SizedBox(height: 16),
+                    _buildAdminStaffFields(),
+                  ] else if (_selectedUserType == UserType.ESTUDIANTE) ...[
+                    _buildSectionTitle('Información del Estudiante', Icons.school),
+                    const SizedBox(height: 16),
+                    _buildStudentFields(),
+                  ] else if (_selectedUserType == UserType.ACUDIENTE) ...[
+                    _buildSectionTitle('Información del Acudiente', Icons.family_restroom),
+                    const SizedBox(height: 16),
+                    _buildAcudienteFields(),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // Estado del Usuario (al final)
+                  _buildSectionTitle('Estado del Usuario', Icons.info),
                   const SizedBox(height: 16),
 
                   // Active Status (read-only display)
@@ -416,27 +443,6 @@ class _EditUserFormState extends State<EditUserForm> {
                       ),
                     ),
                   ),
-
-                  const SizedBox(height: 24),
-
-                  // Type-specific fields
-                  if (_selectedUserType == UserType.DOCENTE) ...[
-                    _buildSectionTitle('Información del Docente', Icons.school),
-                    const SizedBox(height: 16),
-                    _buildTeacherFields(),
-                  ] else if (_selectedUserType == UserType.ADMIN_STAFF) ...[
-                    _buildSectionTitle('Información Administrativa', Icons.business),
-                    const SizedBox(height: 16),
-                    _buildAdminStaffFields(),
-                  ] else if (_selectedUserType == UserType.ESTUDIANTE) ...[
-                    _buildSectionTitle('Información del Estudiante', Icons.school),
-                    const SizedBox(height: 16),
-                    _buildStudentFields(),
-                  ] else if (_selectedUserType == UserType.ACUDIENTE) ...[
-                    _buildSectionTitle('Información del Acudiente', Icons.family_restroom),
-                    const SizedBox(height: 16),
-                    _buildAcudienteFields(),
-                  ],
 
                   const SizedBox(height: 32),
 

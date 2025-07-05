@@ -217,19 +217,34 @@ class UserService {
       
       final token = await currentUser.getIdToken();
       
-      // Call the web API to toggle user status
-      final response = await ApiService.toggleUserStatus(uid, newStatus);
-      
-      print('UserService: API Response: $response');
-      print('UserService: Response type: ${response.runtimeType}');
-      print('UserService: Response keys: ${response.keys.toList()}');
-      
-      if (response['success'] == true) {
-        print('UserService: ✅ User status updated successfully via API');
-      } else {
-        final errorMessage = response['message'] ?? 'Unknown error';
-        print('UserService: ❌ API Error: $errorMessage');
-        throw Exception(errorMessage);
+      try {
+        // Try the web API first
+        print('UserService: Trying web API...');
+        final response = await ApiService.toggleUserStatus(uid, newStatus);
+        
+        print('UserService: API Response: $response');
+        print('UserService: Response type: ${response.runtimeType}');
+        print('UserService: Response keys: ${response.keys.toList()}');
+        
+        if (response['success'] == true) {
+          print('UserService: ✅ User status updated successfully via API');
+          return;
+        } else {
+          final errorMessage = response['message'] ?? 'Unknown error';
+          print('UserService: ❌ API Error: $errorMessage');
+          throw Exception(errorMessage);
+        }
+      } catch (apiError) {
+        print('UserService: API failed, trying Firestore fallback: $apiError');
+        
+        // Fallback: Update directly in Firestore
+        print('UserService: Using Firestore fallback...');
+        await _firestore.collection('users').doc(uid).update({
+          'isActive': newStatus,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
+        print('UserService: ✅ User status updated successfully via Firestore fallback');
       }
       
     } catch (e) {
