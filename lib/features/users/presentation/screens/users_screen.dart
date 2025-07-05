@@ -1792,9 +1792,47 @@ class _UsersScreenState extends State<UsersScreen> {
             ? Text('Grado: ${_getSchoolGradeDisplayName(data.schoolGrade!)}', style: const TextStyle(fontSize: 12))
             : const SizedBox.shrink();
       case UserType.ACUDIENTE:
-        return data.representedChildrenCount != null
-            ? Text('Estudiantes a cargo: ${data.representedChildrenCount}', style: const TextStyle(fontSize: 12))
-            : const SizedBox.shrink();
+        if (data.representedStudentUIDs != null && data.representedStudentUIDs!.isNotEmpty) {
+          final students = context.read<DataProvider>().users
+              .where((u) => data.representedStudentUIDs!.contains(u.uid))
+              .toList();
+          if (students.isNotEmpty) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Estudiantes a cargo:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                ...students.map((student) => Container(
+                  margin: const EdgeInsets.only(bottom: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${student.firstName} ${student.lastName}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                )),
+              ],
+            );
+          } else {
+            return Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey));
+          }
+        } else {
+          return Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey));
+        }
+        break;
     }
   }
 
@@ -2266,11 +2304,47 @@ class _UsersScreenState extends State<UsersScreen> {
         break;
       case UserType.ACUDIENTE:
         title = 'Información del Acudiente';
-        if (data.representedChildrenCount != null) {
-          children.add(_buildInfoRow('Número de Estudiantes a Cargo', data.representedChildrenCount.toString()));
-        }
         if (data.representedStudentUIDs != null && data.representedStudentUIDs!.isNotEmpty) {
-          children.add(_buildInfoRow('Estudiantes Representados', '${data.representedStudentUIDs!.length} estudiantes'));
+          final students = context.read<DataProvider>().users
+              .where((u) => data.representedStudentUIDs!.contains(u.uid))
+              .toList();
+          if (students.isNotEmpty) {
+            children.add(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Estudiantes a cargo:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ...students.map((student) => Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${student.firstName} ${student.lastName}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )),
+                ],
+              ),
+            );
+          } else {
+            children.add(Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey)));
+          }
+        } else {
+          children.add(Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey)));
         }
         break;
     }

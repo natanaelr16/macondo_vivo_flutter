@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../../../shared/models/user_model.dart';
 import '../../../../shared/services/user_service.dart';
 import '../../../../shared/providers/auth_provider.dart';
@@ -44,7 +45,13 @@ class _EditUserFormState extends State<EditUserForm> {
   final List<TeacherRole> _teacherRoles = [];
   SchoolGrade _schoolGrade = SchoolGrade.PRIMARIA_GRADO_1;
   String _profession = '';
-  int _representedChildrenCount = 1;
+  
+  // Student search fields for Acudiente
+  final _studentSearchController = TextEditingController();
+  List<UserModel> _allStudents = [];
+  List<UserModel> _filteredStudents = [];
+  final List<UserModel> _selectedStudents = [];
+  Timer? _studentSearchTimer;
 
   @override
   void initState() {
@@ -81,7 +88,11 @@ class _EditUserFormState extends State<EditUserForm> {
       }
       _schoolGrade = data.schoolGrade ?? SchoolGrade.PRIMARIA_GRADO_1;
       _profession = data.profession ?? '';
-      _representedChildrenCount = data.representedChildrenCount ?? 1;
+      
+      // Cargar estudiantes asignados para acudiente
+      if (user.userType == UserType.ACUDIENTE) {
+        _loadStudents();
+      }
     }
   }
 
@@ -91,6 +102,8 @@ class _EditUserFormState extends State<EditUserForm> {
     _lastNameController.dispose();
     _phoneController.dispose();
     _documentNumberController.dispose();
+    _studentSearchController.dispose();
+    _studentSearchTimer?.cancel();
     super.dispose();
   }
 
@@ -749,29 +762,277 @@ class _EditUserFormState extends State<EditUserForm> {
     );
   }
 
+  // Cargar estudiantes para búsqueda
+  Future<void> _loadStudents() async {
+    try {
+      final users = await _userService.getAllUsers();
+      final students = users.where((user) => user.userType == UserType.ESTUDIANTE).toList();
+      if (mounted) {
+        setState(() {
+          _allStudents = students;
+          _filteredStudents = students;
+          
+          // Inicializar estudiantes ya asignados
+          final data = widget.user.typeSpecificData;
+          if (data?.representedStudentUIDs != null) {
+            _selectedStudents.clear();
+            for (final student in students) {
+              if (data!.representedStudentUIDs!.contains(student.uid)) {
+                _selectedStudents.add(student);
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading students: $e');
+    }
+  }
+
+  // Buscar estudiantes
+  void _searchStudents(String query) {
+    _studentSearchTimer?.cancel();
+    _studentSearchTimer = Timer(const Duration(milliseconds: 300), () {
+      if (query.isEmpty) {
+        setState(() {
+          _filteredStudents = _allStudents;
+        });
+        return;
+      }
+
+      final filtered = _allStudents.where((student) {
+        final searchLower = query.toLowerCase();
+        return student.firstName.toLowerCase().contains(searchLower) ||
+               student.lastName.toLowerCase().contains(searchLower) ||
+               student.email.toLowerCase().contains(searchLower) ||
+               student.documentNumber.toLowerCase().contains(searchLower);
+      }).toList();
+
+      setState(() {
+        _filteredStudents = filtered;
+      });
+    });
+  }
+
+  // Agregar estudiante seleccionado
+  void _addSelectedStudent(UserModel student) {
+    if (!_selectedStudents.any((s) => s.uid == student.uid)) {
+      setState(() {
+        _selectedStudents.add(student);
+      });
+      _studentSearchController.clear();
+      _searchStudents('');
+    }
+  }
+
+  // Remover estudiante seleccionado
+  void _removeSelectedStudent(UserModel student) {
+    setState(() {
+      _selectedStudents.removeWhere((s) => s.uid == student.uid);
+    });
+  }
+
   Widget _buildAcudienteFields() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Number of children represented
-        DropdownButtonFormField<int>(
-          value: _representedChildrenCount,
-          decoration: const InputDecoration(
-            labelText: 'Número de Estudiantes a Cargo',
-            prefixIcon: Icon(Icons.family_restroom),
+        // Campo de búsqueda de estudiantes
+        TextFormField(
+          controller: _studentSearchController,
+          decoration: InputDecoration(
+            labelText: 'Buscar Estudiantes',
+            hintText: 'Buscar por nombre, email o documento',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _studentSearchController.text.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _studentSearchController.clear();
+                      _searchStudents('');
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Colors.grey.shade300),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
+            ),
           ),
-          items: List.generate(10, (index) => index + 1).map((count) {
-            return DropdownMenuItem(
-              value: count,
-              child: Text('$count ${count == 1 ? 'estudiante' : 'estudiantes'}'),
-            );
-          }).toList(),
-          onChanged: (value) {
-            if (value != null) {
-              setState(() {
-                _representedChildrenCount = value;
-              });
-            }
-          },
+          onChanged: _searchStudents,
+        ),
+
+        const SizedBox(height: 16),
+
+        // Lista de estudiantes filtrados
+        if (_studentSearchController.text.isNotEmpty && _filteredStudents.isNotEmpty) ...[
+          Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade300),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _filteredStudents.length,
+              itemBuilder: (context, index) {
+                final student = _filteredStudents[index];
+                final isSelected = _selectedStudents.any((s) => s.uid == student.uid);
+                
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isSelected 
+                        ? Theme.of(context).colorScheme.primary 
+                        : Colors.grey.shade200,
+                    child: Icon(
+                      isSelected ? Icons.check : Icons.person,
+                      color: isSelected ? Colors.white : Colors.grey.shade600,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    '${student.firstName} ${student.lastName}',
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${student.email} • ${student.documentNumber}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: isSelected
+                      ? const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                      : IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          onPressed: () => _addSelectedStudent(student),
+                        ),
+                  onTap: () {
+                    if (isSelected) {
+                      _removeSelectedStudent(student);
+                    } else {
+                      _addSelectedStudent(student);
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Estudiantes seleccionados
+        if (_selectedStudents.isNotEmpty) ...[
+          Text(
+            'Estudiantes Asignados (${_selectedStudents.length})',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.green.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.green.shade200),
+            ),
+            child: Column(
+              children: _selectedStudents.map((student) {
+                return Container(
+                  margin: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.green.shade100,
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.green.shade700,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${student.firstName} ${student.lastName}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            Text(
+                              student.email,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.remove_circle_outline,
+                          color: Colors.red.shade400,
+                          size: 20,
+                        ),
+                        onPressed: () => _removeSelectedStudent(student),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Mensaje informativo
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade200),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Colors.blue.shade600,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Busca y selecciona los estudiantes que representa este acudiente. Puedes buscar por nombre, email o número de documento.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.blue.shade700,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -821,7 +1082,8 @@ class _EditUserFormState extends State<EditUserForm> {
           break;
         case UserType.ACUDIENTE:
           typeSpecificData = TypeSpecificData(
-            representedChildrenCount: _representedChildrenCount,
+            representedChildrenCount: _selectedStudents.length,
+            representedStudentUIDs: _selectedStudents.map((s) => s.uid).toList(),
           );
           break;
       }
