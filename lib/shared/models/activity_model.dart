@@ -313,12 +313,109 @@ class ActivityModel {
   double calculateCompletionPercentage() {
     if (participants.isEmpty || numberOfSessions == 0) return 0.0;
     
-    final totalRequired = numberOfSessions * participants.length;
+    // Solo considerar PARTICIPANTES únicos (no responsables)
+    final uniqueParticipantIds = participants.map((p) => p.userId).toSet();
+    
+    // Total requerido: número de sesiones × número de participantes
+    final totalRequired = numberOfSessions * uniqueParticipantIds.length;
+    
+    if (totalRequired == 0) return 0.0;
+    
+    // Contar solo completaciones de PARTICIPANTES con estado APPROVED o COMPLETED
     final completed = sessionCompletions
-        .where((sc) => sc.status == CompletionStatus.COMPLETED)
+        .where((sc) => 
+          uniqueParticipantIds.contains(sc.userId) && // Solo participantes
+          (sc.status == CompletionStatus.APPROVED || sc.status == CompletionStatus.COMPLETED) // Solo aprobadas o completadas
+        )
         .length;
     
-    return (completed / totalRequired) * 100;
+    // Calcular progreso pero asegurar que no exceda 100%
+    final progress = (completed / totalRequired) * 100;
+    return progress > 100 ? 100.0 : progress;
+  }
+
+  // Get detailed progress information
+  Map<String, dynamic> getProgressDetails() {
+    if (participants.isEmpty || numberOfSessions == 0) {
+      return {
+        'completionPercentage': 0.0,
+        'currentCompletions': 0,
+        'totalRequired': 0,
+        'uniqueParticipants': 0,
+        'isFullyCompleted': false,
+        'progressText': '0 usuarios • 0 sesiones • 0/0 completadas'
+      };
+    }
+    
+    // Solo considerar PARTICIPANTES únicos (no responsables)
+    final uniqueParticipantIds = participants.map((p) => p.userId).toSet();
+    
+    // Total requerido: número de sesiones × número de participantes
+    final totalRequired = numberOfSessions * uniqueParticipantIds.length;
+    
+    // Contar solo completaciones de PARTICIPANTES con estado APPROVED o COMPLETED
+    final completed = sessionCompletions
+        .where((sc) => 
+          uniqueParticipantIds.contains(sc.userId) && // Solo participantes
+          (sc.status == CompletionStatus.APPROVED || sc.status == CompletionStatus.COMPLETED) // Solo aprobadas o completadas
+        )
+        .length;
+    
+    // Calcular progreso pero asegurar que no exceda 100%
+    final completionPercentage = totalRequired > 0 ? (completed / totalRequired) * 100 : 0.0;
+    final finalPercentage = completionPercentage > 100 ? 100.0 : completionPercentage;
+    final isFullyCompleted = completed >= totalRequired;
+    
+    return {
+      'completionPercentage': finalPercentage,
+      'currentCompletions': completed,
+      'totalRequired': totalRequired,
+      'uniqueParticipants': uniqueParticipantIds.length,
+      'isFullyCompleted': isFullyCompleted,
+      'progressText': '${uniqueParticipantIds.length} usuarios • $numberOfSessions sesiones • $completed/$totalRequired completadas'
+    };
+  }
+
+  // Get user progress for a specific participant
+  Map<String, dynamic> getUserProgress(String userId) {
+    // Verificar si el usuario es participante
+    final isParticipant = participants.any((p) => p.userId == userId);
+    if (!isParticipant) {
+      return {
+        'isParticipant': false,
+        'completedSessions': <int>[],
+        'nextSessionNumber': 1,
+        'totalSessions': numberOfSessions,
+        'progress': 0.0
+      };
+    }
+    
+    // Obtener completaciones del usuario (solo APPROVED o COMPLETED)
+    final userCompletions = sessionCompletions
+        .where((sc) => 
+          sc.userId == userId && 
+          (sc.status == CompletionStatus.APPROVED || sc.status == CompletionStatus.COMPLETED)
+        )
+        .toList();
+    
+    final completedSessions = userCompletions.map((sc) => sc.sessionNumber).toList();
+    final nextSessionNumber = completedSessions.isEmpty ? 1 : completedSessions.length + 1;
+    final progress = numberOfSessions > 0 ? (completedSessions.length / numberOfSessions) * 100 : 0.0;
+    
+    return {
+      'isParticipant': true,
+      'completedSessions': completedSessions,
+      'nextSessionNumber': nextSessionNumber,
+      'totalSessions': numberOfSessions,
+      'progress': progress,
+      'canCompleteNextSession': nextSessionNumber <= numberOfSessions
+    };
+  }
+
+  // Check if activity should be marked as completed
+  bool shouldBeMarkedAsCompleted() {
+    final progressDetails = getProgressDetails();
+    return progressDetails['isFullyCompleted'] == true;
   }
 
   // Get session completion status for a specific user and session

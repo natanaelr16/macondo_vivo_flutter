@@ -11,6 +11,7 @@ import 'core/widgets/theme_wrapper.dart';
 import 'shared/providers/theme_provider.dart';
 import 'shared/providers/auth_provider.dart';
 import 'shared/providers/data_provider.dart';
+import 'shared/providers/navigation_provider.dart';
 import 'core/widgets/text_logo.dart';
 import 'shared/models/user_model.dart';
 import 'shared/models/activity_model.dart';
@@ -35,6 +36,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => DataProvider()),
+        ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: const MacondoVivoApp(),
     ),

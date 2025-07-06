@@ -177,14 +177,18 @@ class DataProvider with ChangeNotifier {
     }
   }
 
-  // Delete user using Firestore directly
+  // Delete user using UserService
   Future<void> deleteUser(String userId) async {
     try {
       _setLoading(true);
       _clearError();
       
-      // Usar Firestore directamente para eliminar usuario
-      await _firestoreService.deleteUser(userId);
+      print('DataProvider: Deleting user $userId using UserService...');
+      
+      // Usar UserService para eliminar usuario (que maneja API + Firestore)
+      await _userService.deleteUser(userId);
+      
+      print('DataProvider: UserService.deleteUser completed, reloading users...');
       
       // Recargar la lista de usuarios
       await loadUsers();

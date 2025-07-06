@@ -307,7 +307,7 @@ class ActivityService {
       final token = await _getIdToken();
       
       final response = await _makeAuthenticatedRequest(
-        '$baseUrl/activities/$activityId/complete',
+        '$baseUrl/activities/$activityId/approve',
         method: 'POST',
         token: token,
         data: {
@@ -321,6 +321,29 @@ class ActivityService {
       }
     } catch (e) {
       print('Error approving session completion: $e');
+      rethrow;
+    }
+  }
+
+  // Complete session
+  Future<void> completeSession(String activityId, int sessionNumber) async {
+    try {
+      final token = await _getIdToken();
+      
+      final response = await _makeAuthenticatedRequest(
+        '$baseUrl/activities/$activityId/complete',
+        method: 'POST',
+        token: token,
+        data: {
+          'sessionNumber': sessionNumber,
+        },
+      );
+
+      if (response['statusCode'] != 200) {
+        throw Exception('Error al completar sesión: ${response['statusCode']}');
+      }
+    } catch (e) {
+      print('Error completing session: $e');
       rethrow;
     }
   }

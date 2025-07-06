@@ -5,14 +5,16 @@ import 'package:go_router/go_router.dart';
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/models/activity_model.dart';
+import '../../../../shared/models/user_model.dart';
+import '../../../../shared/services/activity_service.dart';
 import '../../../../core/widgets/loading_widget.dart';
 
 class ActivityDetailScreen extends StatefulWidget {
-  final String activityId;
+  final ActivityModel activity;
 
   const ActivityDetailScreen({
     super.key,
-    required this.activityId,
+    required this.activity,
   });
 
   @override
@@ -20,783 +22,777 @@ class ActivityDetailScreen extends StatefulWidget {
 }
 
 class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
-  ActivityModel? _activity;
-  bool _isLoading = true;
-  String? _error;
-  final Map<String, String> _userNames = {};
-  final Map<String, bool> _loadingStates = {};
-
-  @override
-  void initState() {
-    super.initState();
-    _loadActivityDetails();
-  }
-
-  Future<void> _loadActivityDetails() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final dataProvider = Provider.of<DataProvider>(context, listen: false);
-      final activities = dataProvider.activities;
-      
-      final activity = activities.firstWhere(
-        (a) => a.activityId == widget.activityId,
-        orElse: () => throw Exception('Actividad no encontrada'),
-      );
-
-      setState(() {
-        _activity = activity;
-        _isLoading = false;
-      });
-
-      // Cargar nombres de usuarios
-      await _loadUserNames();
-    } catch (e) {
-      setState(() {
-        _error = e.toString();
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadUserNames() async {
-    if (_activity == null) return;
-
-    final dataProvider = Provider.of<DataProvider>(context, listen: false);
-    final allUserIds = <String>{};
-
-    // Recolectar todos los IDs de usuario
-    allUserIds.add(_activity!.createdBy_uid);
-    for (final participant in _activity!.responsibleUsers) {
-      allUserIds.add(participant.userId);
-    }
-    for (final participant in _activity!.participants) {
-      allUserIds.add(participant.userId);
-    }
-
-    // Cargar nombres
-    for (final userId in allUserIds) {
-      if (_userNames.containsKey(userId)) continue;
-
-      setState(() {
-        _loadingStates[userId] = true;
-      });
-
-      try {
-        final userModel = dataProvider.getUserById(userId);
-        if (userModel != null) {
-          setState(() {
-            _userNames[userId] = userModel.name;
-            _loadingStates[userId] = false;
-          });
-        } else {
-          final user = await dataProvider.loadUserById(userId);
-          setState(() {
-            _userNames[userId] = user?.name ?? 'Usuario no encontrado';
-            _loadingStates[userId] = false;
-          });
-        }
-      } catch (e) {
-        setState(() {
-          _userNames[userId] = 'Error al cargar';
-          _loadingStates[userId] = false;
-        });
-      }
-    }
-  }
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = Theme.of(context).colorScheme.primary;
-    final backgroundColor = Theme.of(context).colorScheme.surface;
-    final cardColor = Theme.of(context).colorScheme.surface;
-    final textColor = Theme.of(context).colorScheme.onSurface;
-    final textSecondaryColor = Theme.of(context).colorScheme.onSurface.withOpacity(0.7);
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final backgroundColor = theme.colorScheme.surface;
+    final textColor = theme.colorScheme.onSurface;
+    final textSecondaryColor = theme.colorScheme.onSurface.withOpacity(0.7);
 
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
-          title: const Text('Detalles de Actividad'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: const Text('Detalles de Actividad'),
+        backgroundColor: primaryColor,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () => _editActivity(),
           ),
-        ),
-        body: const LoadingWidget(),
-      );
-    }
+        ],
+      ),
+      body: Consumer2<DataProvider, AuthProvider>(
+        builder: (context, dataProvider, authProvider, child) {
+          final currentUser = authProvider.userData;
+          final users = dataProvider.users;
+          
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with status and category
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: primaryColor.withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(widget.activity.status).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(_getStatusIcon(widget.activity.status), 
+                                     size: 16, 
+                                     color: _getStatusColor(widget.activity.status)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _getStatusLabel(widget.activity.status),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                    color: _getStatusColor(widget.activity.status),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              widget.activity.category ?? 'General',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        widget.activity.title,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        widget.activity.description,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: textSecondaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-    if (_error != null || _activity == null) {
-      return Scaffold(
-        backgroundColor: backgroundColor,
-        appBar: AppBar(
-          title: const Text('Detalles de Actividad'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () => context.pop(),
-          ),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+                const SizedBox(height: 24),
+
+                // Progress section
+                _buildProgressSection(textColor, primaryColor),
+
+                const SizedBox(height: 24),
+
+                // Sessions section
+                _buildSessionsSection(textColor, primaryColor, currentUser, users),
+
+                const SizedBox(height: 24),
+
+                // Participants section
+                _buildParticipantsSection(textColor, primaryColor, users),
+
+                const SizedBox(height: 24),
+
+                // Responsible users section
+                _buildResponsibleUsersSection(textColor, primaryColor, users),
+
+                const SizedBox(height: 24),
+
+                // Additional details
+                _buildAdditionalDetailsSection(textColor, textSecondaryColor),
+
+                const SizedBox(height: 24),
+
+                // Action buttons
+                _buildActionButtons(currentUser, primaryColor),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildProgressSection(Color textColor, Color primaryColor) {
+    final progress = _calculateProgress();
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
-              ),
-              const SizedBox(height: 16),
+              Icon(Icons.trending_up, color: Colors.green, size: 20),
+              const SizedBox(width: 8),
               Text(
-                'Error al cargar la actividad',
+                'Progreso de la Actividad',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: textColor,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                _error ?? 'Actividad no encontrada',
-                style: TextStyle(color: textSecondaryColor),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadActivityDetails,
-                child: const Text('Reintentar'),
-              ),
             ],
           ),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text('Detalles de Actividad'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-        actions: [
-          if (_canEditActivity())
-            IconButton(
-              icon: const Icon(Icons.edit),
-              onPressed: () => _showEditActivityDialog(context),
-            ),
-          if (_canDeleteActivity())
-            IconButton(
-              icon: const Icon(Icons.delete),
-              onPressed: () => _showDeleteActivityDialog(context),
-            ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadActivityDetails,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(height: 16),
+          Row(
             children: [
-              // Header con título y estado
-              _buildActivityHeader(textColor, textSecondaryColor, primaryColor),
-              const SizedBox(height: 24),
-
-              // Información básica
-              _buildBasicInfo(cardColor, textColor, textSecondaryColor),
-              const SizedBox(height: 16),
-
-              // Responsables
-              if (_activity!.responsibleUsers.isNotEmpty)
-                _buildResponsibleUsers(cardColor, textColor, textSecondaryColor, primaryColor),
-              const SizedBox(height: 16),
-
-              // Participantes
-              if (_activity!.participants.isNotEmpty)
-                _buildParticipants(cardColor, textColor, textSecondaryColor),
-              const SizedBox(height: 16),
-
-              // Sesiones
-              _buildSessions(cardColor, textColor, textSecondaryColor),
-              const SizedBox(height: 16),
-
-              // Materiales y objetivos
-              if (_activity!.materials.isNotEmpty)
-                _buildMaterials(cardColor, textColor, textSecondaryColor),
-              const SizedBox(height: 16),
-
-              if (_activity!.objectives.isNotEmpty)
-                _buildObjectives(cardColor, textColor, textSecondaryColor),
-              const SizedBox(height: 16),
-
-              // Progreso de completado
-              _buildCompletionProgress(cardColor, textColor, textSecondaryColor, primaryColor),
-              const SizedBox(height: 24),
-
-              // Botones de acción
-              _buildActionButtons(primaryColor, textColor),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${progress['percentage']}%',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    Text(
+                      'Completado',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: textColor.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${progress['current']}/${progress['total']}',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                    Text(
+                      'Sesiones completadas',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: textColor.withOpacity(0.7),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-        ),
+          const SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress['percentage'] / 100,
+            backgroundColor: textColor.withOpacity(0.1),
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+            minHeight: 8,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActivityHeader(Color textColor, Color textSecondaryColor, Color primaryColor) {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _getActivityStatusColor(_activity!.status).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    _getActivityIcon(_activity!.category ?? "general"),
-                    color: _getActivityStatusColor(_activity!.status),
-                    size: 28,
-                  ),
+  Widget _buildSessionsSection(Color textColor, Color primaryColor, UserModel? currentUser, List<UserModel> users) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Sesiones (${widget.activity.sessionDates.length})',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        const SizedBox(height: 16),
+        ...widget.activity.sessionDates.asMap().entries.map((entry) {
+          final index = entry.key;
+          final session = entry.value;
+          final sessionNumber = session.sessionNumber;
+          final sessionDate = session.date;
+          final startTime = session.startTime;
+          final endTime = session.endTime;
+          
+          final userProgress = _getUserSessionProgress(sessionNumber, currentUser?.uid);
+          final canComplete = _canCompleteSession(sessionNumber, currentUser);
+          final canApprove = _canApproveSession(sessionNumber, currentUser);
+          
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _activity!.title,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 4),
+                      child: Icon(
+                        Icons.event,
+                        color: primaryColor,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sesión $sessionNumber',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          Text(
+                            '${_formatDate(sessionDate)} • $startTime - $endTime',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: textColor.withOpacity(0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (userProgress != null) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: _getActivityStatusColor(_activity!.status).withOpacity(0.1),
+                          color: _getCompletionStatusColor(userProgress.status).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          _getActivityStatusDisplayName(_activity!.status),
+                          _getCompletionStatusLabel(userProgress.status),
                           style: TextStyle(
                             fontSize: 12,
-                            color: _getActivityStatusColor(_activity!.status),
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w500,
+                            color: _getCompletionStatusColor(userProgress.status),
                           ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _activity!.description,
-              style: TextStyle(
-                fontSize: 16,
-                color: textColor,
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBasicInfo(Color cardColor, Color textColor, Color textSecondaryColor) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Información General',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildInfoRow('Creado por', _userNames[_activity!.createdBy_uid] ?? 'Cargando...'),
-            _buildInfoRow('Categoría', _getTypeDisplayName(_activity!.category ?? "general")),
-            if (_activity!.estimatedDuration != null)
-              _buildInfoRow('Duración estimada', '${_activity!.estimatedDuration} minutos'),
-            _buildInfoRow('Número de sesiones', '${_activity!.numberOfSessions}'),
-            if (_activity!.submissionLink != null)
-              _buildInfoRow('Enlace de entrega', _activity!.submissionLink!),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResponsibleUsers(Color cardColor, Color textColor, Color textSecondaryColor, Color primaryColor) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.person_outline, color: primaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Responsables',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...(_activity!.responsibleUsers.map((participant) {
-              final userName = _userNames[participant.userId] ?? 'Cargando...';
-              final isLoading = _loadingStates[participant.userId] ?? false;
-              
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: primaryColor.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.person, color: primaryColor, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        userName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                    if (isLoading)
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                        ),
-                      ),
                   ],
                 ),
-              );
-            })),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildParticipants(Color cardColor, Color textColor, Color textSecondaryColor) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.people_outline, color: textSecondaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Participantes (${_activity!.participants.length})',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...(_activity!.participants.map((participant) {
-              final userName = _userNames[participant.userId] ?? 'Cargando...';
-              final isLoading = _loadingStates[participant.userId] ?? false;
-              
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: textSecondaryColor.withOpacity(0.2)),
-                ),
-                child: Row(
+                
+                const SizedBox(height: 12),
+                
+                // Session actions
+                Row(
                   children: [
-                    Icon(Icons.person, color: textSecondaryColor, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        userName,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: textColor,
+                    if (canComplete)
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _completeSession(sessionNumber),
+                          icon: const Icon(Icons.check_circle, size: 18),
+                          label: const Text('Completar Sesión'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _getParticipantStatusColor(participant.status).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _getParticipantStatusDisplayName(participant.status),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _getParticipantStatusColor(participant.status),
-                          fontWeight: FontWeight.w500,
+                    if (canApprove) ...[
+                      if (canComplete) const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showApprovalDialog(sessionNumber),
+                          icon: const Icon(Icons.approval, size: 18),
+                          label: const Text('Aprobar Participantes'),
                         ),
                       ),
-                    ),
-                    if (isLoading)
-                      SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(textSecondaryColor),
-                        ),
-                      ),
+                    ],
                   ],
                 ),
-              );
-            })),
-          ],
-        ),
-      ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 
-  Widget _buildSessions(Color cardColor, Color textColor, Color textSecondaryColor) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _buildParticipantsSection(Color textColor, Color primaryColor, List<UserModel> users) {
+    final participants = widget.activity.participants;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Participantes (${participants.length})',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (participants.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
               children: [
-                Icon(Icons.schedule, color: textSecondaryColor),
+                Icon(Icons.people_outline, color: Colors.grey, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'Sesiones (${_activity!.sessionDates.length})',
+                  'No hay participantes asignados',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+                    fontSize: 14,
+                    color: textColor.withOpacity(0.7),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            ...(_activity!.sessionDates.map((session) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: textSecondaryColor.withOpacity(0.2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          )
+        else
+          ...participants.map((participant) {
+            final user = users.firstWhere(
+              (u) => u.uid == participant.userId,
+              orElse: () => UserModel(
+                uid: participant.userId,
+                firstName: 'Usuario',
+                lastName: 'Desconocido',
+                email: '',
+                documentType: DocumentType.CC,
+                documentNumber: 'N/A',
+                userType: UserType.ESTUDIANTE,
+                appRole: AppRole.USER,
+                isActive: true,
+                provisionalPasswordSet: false,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ),
+            );
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: primaryColor.withOpacity(0.1),
+                    child: Text(
+                      '${user.firstName[0]}${user.lastName[0]}',
+                      style: TextStyle(
+                        color: primaryColor,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Sesión ${session.sessionNumber}',
+                          '${user.firstName} ${user.lastName}',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: textColor,
                           ),
                         ),
-                        const Spacer(),
-                        if (session.status != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _getSessionStatusColor(session.status!).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              _getSessionStatusDisplayName(session.status!),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: _getSessionStatusColor(session.status!),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
+                        Text(
+                          user.email,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: textColor.withOpacity(0.7),
                           ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Fecha: ${_formatDate(session.date)}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textSecondaryColor,
-                      ),
-                    ),
-                    Text(
-                      'Horario: ${session.startTime} - ${session.endTime}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textSecondaryColor,
-                      ),
-                    ),
-                    if (session.location != null)
-                      Text(
-                        'Ubicación: ${session.location}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: textSecondaryColor,
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            })),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMaterials(Color cardColor, Color textColor, Color textSecondaryColor) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.inventory_2_outlined, color: textSecondaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Materiales',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...(_activity!.materials.map((material) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.fiber_manual_record, size: 8, color: textSecondaryColor),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        material,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: textColor,
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getParticipantStatusColor(participant.status).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      participant.status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _getParticipantStatusColor(participant.status),
                       ),
                     ),
-                  ],
-                ),
-              );
-            })),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildObjectives(Color cardColor, Color textColor, Color textSecondaryColor) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.flag_outlined, color: textSecondaryColor),
-                const SizedBox(width: 8),
-                Text(
-                  'Objetivos',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            ...(_activity!.objectives.map((objective) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(Icons.fiber_manual_record, size: 8, color: textSecondaryColor),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        objective,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            })),
-          ],
-        ),
-      ),
+                ],
+              ),
+            );
+          }).toList(),
+      ],
     );
   }
 
-  Widget _buildCompletionProgress(Color cardColor, Color textColor, Color textSecondaryColor, Color primaryColor) {
-    final completionPercentage = _activity!.completionPercentage ?? 0.0;
+  Widget _buildResponsibleUsersSection(Color textColor, Color primaryColor, List<UserModel> users) {
+    final responsibleUsers = widget.activity.responsibleUsers;
     
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Responsables (${responsibleUsers.length})',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (responsibleUsers.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
               children: [
-                Icon(Icons.analytics_outlined, color: primaryColor),
+                Icon(Icons.person, color: Colors.grey, size: 20),
                 const SizedBox(width: 8),
                 Text(
-                  'Progreso de Completado',
+                  'No hay responsables asignados',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
+                    fontSize: 14,
+                    color: textColor.withOpacity(0.7),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            LinearProgressIndicator(
-              value: completionPercentage / 100,
-              backgroundColor: Colors.grey.withOpacity(0.2),
-              valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-              minHeight: 8,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${completionPercentage.toStringAsFixed(1)}% completado',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: textColor,
+          )
+        else
+          ...responsibleUsers.map((responsible) {
+            final user = users.firstWhere(
+              (u) => u.uid == responsible.userId,
+              orElse: () => UserModel(
+                uid: responsible.userId,
+                firstName: 'Usuario',
+                lastName: 'Desconocido',
+                email: '',
+                documentType: DocumentType.CC,
+                documentNumber: 'N/A',
+                userType: UserType.ESTUDIANTE,
+                appRole: AppRole.USER,
+                isActive: true,
+                provisionalPasswordSet: false,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${_activity!.sessionCompletions.where((sc) => sc.status == CompletionStatus.COMPLETED).length} de ${_activity!.numberOfSessions * _activity!.participants.length} sesiones completadas',
-              style: TextStyle(
-                fontSize: 14,
-                color: textSecondaryColor,
+            );
+            
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.withOpacity(0.2)),
               ),
-            ),
-          ],
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: primaryColor.withOpacity(0.1),
+                    child: Icon(
+                      Icons.person,
+                      color: primaryColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${user.firstName} ${user.lastName}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
+                        Text(
+                          'Responsable • ${user.appRole.name}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: textColor.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _getParticipantStatusColor(responsible.status).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      responsible.status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _getParticipantStatusColor(responsible.status),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildAdditionalDetailsSection(Color textColor, Color textSecondaryColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Detalles Adicionales',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
         ),
+        const SizedBox(height: 16),
+        
+        // Estimated duration
+        if (widget.activity.estimatedDuration != null) ...[
+          _buildDetailItem(
+            Icons.timer,
+            'Duración Estimada',
+            '${widget.activity.estimatedDuration} minutos',
+            textColor,
+            textSecondaryColor,
+          ),
+          const SizedBox(height: 12),
+        ],
+        
+        // Submission link
+        if (widget.activity.submissionLink != null && widget.activity.submissionLink!.isNotEmpty) ...[
+          _buildDetailItem(
+            Icons.link,
+            'Enlace de Entrega',
+            widget.activity.submissionLink!,
+            textColor,
+            textSecondaryColor,
+            isLink: true,
+          ),
+          const SizedBox(height: 12),
+        ],
+        
+        // Materials
+        if (widget.activity.materials.isNotEmpty) ...[
+          _buildDetailItem(
+            Icons.inventory,
+            'Materiales',
+            widget.activity.materials.join(', '),
+            textColor,
+            textSecondaryColor,
+          ),
+          const SizedBox(height: 12),
+        ],
+        
+        // Objectives
+        if (widget.activity.objectives.isNotEmpty) ...[
+          _buildDetailItem(
+            Icons.flag,
+            'Objetivos',
+            widget.activity.objectives.join(', '),
+            textColor,
+            textSecondaryColor,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDetailItem(
+    IconData icon,
+    String title,
+    String value,
+    Color textColor,
+    Color textSecondaryColor, {
+    bool isLink = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: textSecondaryColor, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: textSecondaryColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                if (isLink)
+                  GestureDetector(
+                    onTap: () => _openLink(value),
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: textColor,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildActionButtons(Color primaryColor, Color textColor) {
-    final currentUser = Provider.of<AuthProvider>(context, listen: false).user;
-    if (currentUser == null) return const SizedBox.shrink();
-
-    final isParticipant = _activity!.participants.any((p) => p.userId == currentUser.uid);
-    final isResponsible = _activity!.responsibleUsers.any((r) => r.userId == currentUser.uid);
-    final canComplete = isParticipant || isResponsible;
-
+  Widget _buildActionButtons(UserModel? currentUser, Color primaryColor) {
+    final canEdit = _canEditActivity(currentUser);
+    final canDelete = _canDeleteActivity(currentUser);
+    
     return Column(
       children: [
-        if (canComplete && _activity!.status != ActivityStatus.COMPLETADA)
+        if (canEdit)
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _showCompleteSessionDialog,
-              icon: const Icon(Icons.check_circle),
-              label: const Text('Completar Sesión'),
+              onPressed: _editActivity,
+              icon: const Icon(Icons.edit),
+              label: const Text('Editar Actividad'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
             ),
           ),
-        if (isResponsible)
+        if (canEdit && canDelete) const SizedBox(height: 12),
+        if (canDelete)
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _showApproveCompletionsDialog,
-              icon: const Icon(Icons.approval),
-              label: const Text('Aprobar Completaciones'),
+              onPressed: _deleteActivity,
+              icon: const Icon(Icons.delete, color: Colors.red),
+              label: const Text('Eliminar Actividad', style: TextStyle(color: Colors.red)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: primaryColor,
+                side: const BorderSide(color: Colors.red),
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
               ),
             ),
           ),
@@ -804,154 +800,160 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  // Helper methods
+  Map<String, dynamic> _calculateProgress() {
+    final participants = widget.activity.participants;
+    final totalParticipants = participants.length;
+    final totalSessions = widget.activity.numberOfSessions;
+    final totalRequiredCompletions = totalParticipants * totalSessions;
+    
+    final completions = widget.activity.sessionCompletions;
+    final validCompletions = completions.where((c) => 
+      c.status == CompletionStatus.APPROVED || c.status == CompletionStatus.COMPLETED
+    ).length;
+    
+    final percentage = totalRequiredCompletions > 0 
+        ? (validCompletions / totalRequiredCompletions * 100).round()
+        : 0;
+    
+    return {
+      'percentage': percentage,
+      'current': validCompletions,
+      'total': totalRequiredCompletions,
+      'isComplete': validCompletions >= totalRequiredCompletions,
+    };
   }
 
-  // Helper methods
-  Color _getActivityStatusColor(ActivityStatus status) {
-    switch (status) {
-      case ActivityStatus.COMPLETADA:
-        return Colors.green;
-      case ActivityStatus.ACTIVA:
-        return Colors.blue;
-      case ActivityStatus.INACTIVA:
-        return Colors.red;
-      default:
-        return Colors.grey;
+  SessionCompletion? _getUserSessionProgress(int sessionNumber, String? userId) {
+    if (userId == null) return null;
+    
+    final completions = widget.activity.sessionCompletions;
+    try {
+      return completions.firstWhere(
+        (c) => c.sessionNumber == sessionNumber && c.userId == userId,
+      );
+    } catch (e) {
+      return null;
     }
   }
 
-  String _getActivityStatusDisplayName(ActivityStatus status) {
+  bool _canCompleteSession(int sessionNumber, UserModel? currentUser) {
+    if (currentUser == null) return false;
+    
+    // Check if user already completed this session
+    final existingCompletion = _getUserSessionProgress(sessionNumber, currentUser.uid);
+    if (existingCompletion != null) return false;
+    
+    // Check if user is participant or responsible
+    final isParticipant = widget.activity.participants.any((p) => p.userId == currentUser.uid);
+    final isResponsible = widget.activity.responsibleUsers.any((r) => r.userId == currentUser.uid);
+    
+    return isParticipant || isResponsible;
+  }
+
+  bool _canApproveSession(int sessionNumber, UserModel? currentUser) {
+    if (currentUser == null) return false;
+    
+    // Only responsible users can approve
+    final isResponsible = widget.activity.responsibleUsers.any((r) => r.userId == currentUser.uid);
+    if (!isResponsible) return false;
+    
+    // Check if there are pending completions to approve
+    final completions = widget.activity.sessionCompletions;
+    final pendingCompletions = completions.where((c) => 
+      c.sessionNumber == sessionNumber && c.status == CompletionStatus.PENDING_APPROVAL
+    );
+    
+    return pendingCompletions.isNotEmpty;
+  }
+
+  bool _canEditActivity(UserModel? currentUser) {
+    if (currentUser == null) return false;
+    
+    if (currentUser.appRole == AppRole.SuperUser) return true;
+    if (currentUser.appRole == AppRole.ADMIN) {
+      return widget.activity.createdBy_uid == currentUser.uid;
+    }
+    
+    return false;
+  }
+
+  bool _canDeleteActivity(UserModel? currentUser) {
+    if (currentUser == null) return false;
+    
+    if (currentUser.appRole == AppRole.SuperUser) return true;
+    if (currentUser.appRole == AppRole.ADMIN) {
+      return widget.activity.createdBy_uid == currentUser.uid;
+    }
+    
+    return false;
+  }
+
+  Color _getStatusColor(ActivityStatus status) {
     switch (status) {
+      case ActivityStatus.ACTIVA:
+        return const Color(0xFFFF5722);
       case ActivityStatus.COMPLETADA:
-        return 'Completada';
+        return const Color(0xFF4CAF50);
+      case ActivityStatus.INACTIVA:
+        return const Color(0xFF9E9E9E);
+    }
+  }
+
+  IconData _getStatusIcon(ActivityStatus status) {
+    switch (status) {
+      case ActivityStatus.ACTIVA:
+        return Icons.assignment;
+      case ActivityStatus.COMPLETADA:
+        return Icons.check_circle;
+      case ActivityStatus.INACTIVA:
+        return Icons.schedule;
+    }
+  }
+
+  String _getStatusLabel(ActivityStatus status) {
+    switch (status) {
       case ActivityStatus.ACTIVA:
         return 'Activa';
+      case ActivityStatus.COMPLETADA:
+        return 'Completada';
       case ActivityStatus.INACTIVA:
         return 'Inactiva';
-      default:
-        return 'Desconocido';
+    }
+  }
+
+  Color _getCompletionStatusColor(CompletionStatus status) {
+    switch (status) {
+      case CompletionStatus.PENDING_APPROVAL:
+        return const Color(0xFFFF9800);
+      case CompletionStatus.APPROVED:
+        return const Color(0xFF2196F3);
+      case CompletionStatus.COMPLETED:
+        return const Color(0xFF4CAF50);
+    }
+  }
+
+  String _getCompletionStatusLabel(CompletionStatus status) {
+    switch (status) {
+      case CompletionStatus.PENDING_APPROVAL:
+        return 'Pendiente';
+      case CompletionStatus.APPROVED:
+        return 'Aprobado';
+      case CompletionStatus.COMPLETED:
+        return 'Completado';
     }
   }
 
   Color _getParticipantStatusColor(String status) {
     switch (status) {
-      case 'COMPLETADA':
-        return Colors.green;
+      case 'ACTIVO':
+        return const Color(0xFF4CAF50);
       case 'PENDIENTE':
-        return Colors.orange;
+        return const Color(0xFFFF9800);
+      case 'INACTIVO':
+        return const Color(0xFF9E9E9E);
       default:
-        return Colors.grey;
-    }
-  }
-
-  String _getParticipantStatusDisplayName(String status) {
-    switch (status) {
-      case 'COMPLETADA':
-        return 'Completada';
-      case 'PENDIENTE':
-        return 'Pendiente';
-      default:
-        return 'Desconocido';
-    }
-  }
-
-  Color _getSessionStatusColor(String status) {
-    switch (status) {
-      case 'completed':
-        return Colors.green;
-      case 'active':
-        return Colors.blue;
-      case 'pending':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getSessionStatusDisplayName(String status) {
-    switch (status) {
-      case 'completed':
-        return 'Completada';
-      case 'active':
-        return 'Activa';
-      case 'pending':
-        return 'Pendiente';
-      default:
-        return 'Desconocido';
-    }
-  }
-
-  Color _getTypeColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'assignment':
-        return Colors.blue;
-      case 'exam':
-        return Colors.red;
-      case 'project':
-        return Colors.purple;
-      case 'homework':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getTypeDisplayName(String type) {
-    switch (type.toLowerCase()) {
-      case 'assignment':
-        return 'Tarea';
-      case 'exam':
-        return 'Examen';
-      case 'project':
-        return 'Proyecto';
-      case 'homework':
-        return 'Deberes';
-      default:
-        return 'Actividad';
-    }
-  }
-
-  IconData _getActivityIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'assignment':
-        return Icons.assignment;
-      case 'exam':
-        return Icons.quiz;
-      case 'project':
-        return Icons.work;
-      case 'homework':
-        return Icons.book;
-      default:
-        return Icons.assignment;
+        return const Color(0xFF9E9E9E);
     }
   }
 
@@ -959,37 +961,23 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  bool _canEditActivity() {
-    final currentUser = Provider.of<AuthProvider>(context, listen: false).user;
-    if (currentUser == null) return false;
-    
-    // TODO: Implementar verificación de roles cuando tengamos el modelo de usuario completo
-    // Por ahora, permitir edición si es el creador
-    return _activity!.createdBy_uid == currentUser.uid;
-  }
-
-  bool _canDeleteActivity() {
-    final currentUser = Provider.of<AuthProvider>(context, listen: false).user;
-    if (currentUser == null) return false;
-    
-    // TODO: Implementar verificación de roles cuando tengamos el modelo de usuario completo
-    // Por ahora, permitir eliminación si es el creador
-    return _activity!.createdBy_uid == currentUser.uid;
-  }
-
-  void _showEditActivityDialog(BuildContext context) {
-    // TODO: Implementar edición de actividad
+  // Action methods
+  void _editActivity() {
+    // TODO: Implement edit activity
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Función de edición en desarrollo')),
+      const SnackBar(
+        content: Text('Función de edición en desarrollo'),
+        backgroundColor: Colors.orange,
+      ),
     );
   }
 
-  void _showDeleteActivityDialog(BuildContext context) {
+  void _deleteActivity() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Eliminar Actividad'),
-        content: Text('¿Estás seguro de que quieres eliminar "${_activity!.title}"?'),
+        content: const Text('¿Estás seguro de que quieres eliminar esta actividad? Esta acción no se puede deshacer.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -997,10 +985,8 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
           ),
           TextButton(
             onPressed: () {
-              final dataProvider = Provider.of<DataProvider>(context, listen: false);
-              dataProvider.deleteActivity(_activity!.activityId);
               Navigator.of(context).pop();
-              context.pop(); // Volver a la lista
+              _confirmDeleteActivity();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Eliminar'),
@@ -1010,17 +996,119 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
     );
   }
 
-  void _showCompleteSessionDialog() {
-    // TODO: Implementar diálogo de completar sesión
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Función de completar sesión en desarrollo')),
+  void _confirmDeleteActivity() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await context.read<DataProvider>().deleteActivity(widget.activity.activityId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actividad eliminada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al eliminar actividad: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _completeSession(int sessionNumber) async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final activityService = ActivityService();
+      await activityService.completeSession(widget.activity.activityId, sessionNumber);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Sesión $sessionNumber completada exitosamente'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        // Refresh the activity data
+        context.read<DataProvider>().loadActivities();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al completar sesión: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showApprovalDialog(int sessionNumber) {
+    final completions = widget.activity.sessionCompletions;
+    final pendingCompletions = completions.where((c) => 
+      c.sessionNumber == sessionNumber && c.status == CompletionStatus.PENDING_APPROVAL
+    ).toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Aprobar Sesión $sessionNumber'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Completaciones pendientes de aprobación:'),
+            const SizedBox(height: 12),
+            ...pendingCompletions.map((completion) {
+              return ListTile(
+                title: Text('Usuario: ${completion.userId}'),
+                subtitle: Text('Completado: ${_formatDate(completion.completedAt)}')
+              );
+            }).toList(),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cerrar'),
+          ),
+        ],
+      ),
     );
   }
 
-  void _showApproveCompletionsDialog() {
-    // TODO: Implementar diálogo de aprobar completaciones
+  void _openLink(String url) {
+    // TODO: Implement link opening
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Función de aprobar completaciones en desarrollo')),
+      SnackBar(
+        content: Text('Abriendo enlace: $url'),
+        backgroundColor: Colors.blue,
+      ),
     );
   }
-} 
+}

@@ -13,6 +13,7 @@ import '../widgets/edit_user_form.dart';
 import '../../../../core/widgets/loading_widget.dart';
 import '../../../../core/widgets/user_status_badge.dart';
 import '../../../../core/widgets/provisional_password_display.dart';
+import '../../../../core/widgets/fixed_bottom_navigation.dart';
 
 
 class UsersScreen extends StatefulWidget {
@@ -227,7 +228,6 @@ class _UsersScreenState extends State<UsersScreen> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      bottomNavigationBar: const BottomNavigation(currentRoute: '/users'),
       appBar: AppBar(
         centerTitle: false,
         title: const Padding(

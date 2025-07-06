@@ -192,10 +192,46 @@ class UserService {
     try {
       print('UserService: Deleting user $uid...');
       
-      // Delete user using FirestoreService
-      await _firestoreService.deleteUser(uid);
+      // Get current user token for authentication
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        throw Exception('No authenticated user found');
+      }
       
-      print('UserService: ✅ User deleted successfully');
+      print('UserService: Current user: ${currentUser.email} (${currentUser.uid})');
+      
+      try {
+        // Try the web API first to delete from Firebase Auth
+        print('UserService: Trying web API to delete user from Firebase Auth...');
+        await ApiService.deleteUser(uid);
+        
+        print('UserService: ✅ User deleted successfully via API (Firebase Auth + Firestore)');
+        
+      } catch (apiError) {
+        print('UserService: API failed with error: $apiError');
+        
+        // Check if it's an authorization error
+        if (apiError.toString().contains('No autorizado') || 
+            apiError.toString().contains('No authorized') ||
+            apiError.toString().contains('403')) {
+          print('UserService: ❌ Authorization error - User may not have permission to delete users');
+          print('UserService: ❌ This user can only delete from Firestore, not from Firebase Auth');
+          print('UserService: ❌ Please use the web app to delete users from Firebase Auth');
+          
+          // Still delete from Firestore for consistency
+          print('UserService: Proceeding with Firestore deletion only...');
+          await _firestoreService.deleteUser(uid);
+          
+          throw Exception('No tienes permisos para eliminar usuarios de Firebase Auth. El usuario fue eliminado solo de Firestore. Usa la aplicación web para eliminación completa.');
+        }
+        
+        // Other API errors - use Firestore fallback
+        print('UserService: Using Firestore fallback (Firebase Auth deletion required manually)...');
+        await _firestoreService.deleteUser(uid);
+        
+        print('UserService: ⚠️ User deleted from Firestore only. Firebase Auth deletion required manually.');
+        print('UserService: ⚠️ Please delete the user from Firebase Auth console or use the web app.');
+      }
       
     } catch (e) {
       print('UserService: Error deleting user: $e');

@@ -1,5 +1,5 @@
 name: macondo_vivo_flutter
-description: "A new Flutter project."
+description: "MacondoVIVO - Sistema de Gestión Educativa"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -44,10 +44,12 @@ dependencies:
   collection: ^1.18.0
   crypto: ^3.0.3
   share_plus: ^11.0.0
+  table_calendar: ^3.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -102,3 +104,19 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# Flutter Launcher Icons configuration
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/icons/macondo_icon.png"
+  min_sdk_android: 21
+  web:
+    generate: true
+    image_path: "assets/icons/macondo_icon.png"
+  windows:
+    generate: true
+    image_path: "assets/icons/macondo_icon.png"
+  macos:
+    generate: true
+    image_path: "assets/icons/macondo_icon.png"

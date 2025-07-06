@@ -9,6 +9,9 @@ import '../../features/activities/presentation/screens/activities_screen.dart';
 import '../../features/users/presentation/screens/users_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
+import '../widgets/navigation_wrapper.dart';
+import '../widgets/fixed_layout.dart';
+import '../widgets/activities_layout.dart';
 
 class AppRouter {
   static GoRouter get router => GoRouter(
@@ -57,18 +60,16 @@ class AppRouter {
         name: 'dashboard',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const DashboardScreen(),
+          child: const NavigationWrapper(
+            route: '/dashboard',
+            child: FixedLayout(
+              child: DashboardScreen(),
+            ),
+          ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final offsetAnimation = Tween<Offset>(
-              begin: const Offset(0, 0.1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
             return FadeTransition(
               opacity: animation,
-              child: SlideTransition(
-                position: offsetAnimation,
-                child: child,
-              ),
+              child: child,
             );
           },
         ),
@@ -76,35 +77,75 @@ class AppRouter {
       GoRoute(
         path: '/activities',
         name: 'activities',
-        builder: (context, state) => const ActivitiesScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const NavigationWrapper(
+            route: '/activities',
+            child: ActivitiesLayout(
+              child: ActivitiesScreen(),
+            ),
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/users',
         name: 'users',
-        builder: (context, state) => const UsersScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const NavigationWrapper(
+            route: '/users',
+            child: FixedLayout(
+              child: UsersScreen(),
+            ),
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/reports',
         name: 'reports',
-        builder: (context, state) => const ReportsScreen(),
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const NavigationWrapper(
+            route: '/reports',
+            child: FixedLayout(
+              child: ReportsScreen(),
+            ),
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation,
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/settings',
         name: 'settings',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const SettingsScreen(),
+          child: const NavigationWrapper(
+            route: '/settings',
+            child: FixedLayout(
+              child: SettingsScreen(),
+            ),
+          ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            final offsetAnimation = Tween<Offset>(
-              begin: const Offset(0, 0.1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOut));
             return FadeTransition(
               opacity: animation,
-              child: SlideTransition(
-                position: offsetAnimation,
-                child: child,
-              ),
+              child: child,
             );
           },
         ),

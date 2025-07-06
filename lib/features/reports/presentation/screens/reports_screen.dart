@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../core/widgets/modern_card.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
+import '../../../../core/widgets/fixed_bottom_navigation.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -72,7 +73,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
-      bottomNavigationBar: const BottomNavigation(currentRoute: '/reports'),
       appBar: AppBar(
         title: const Text('Reportes'),
         actions: [

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:go_router/go_router.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/providers/auth_provider.dart';
-import '../../../../shared/providers/theme_provider.dart';
 import '../../../../shared/providers/data_provider.dart';
+import '../../../../shared/providers/theme_provider.dart';
+import '../../../../shared/providers/navigation_provider.dart';
 import '../../../../core/widgets/animated_logo.dart';
+import '../../../../core/widgets/fixed_bottom_navigation.dart';
 import '../../../../core/widgets/navigation_card.dart';
 import '../../../../core/widgets/stat_card.dart';
 import '../../../../core/widgets/bottom_navigation.dart';
@@ -38,7 +41,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       backgroundColor: backgroundColor,
-      bottomNavigationBar: const BottomNavigation(currentRoute: '/dashboard'),
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [

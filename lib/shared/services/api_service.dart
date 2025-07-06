@@ -92,18 +92,31 @@ class ApiService {
   // Eliminar usuario usando la API del proyecto web
   static Future<void> deleteUser(String userId) async {
     try {
+      print('ApiService: 🗑️ Iniciando eliminación de usuario: $userId');
       final headers = await _getHeaders();
       
+      final url = '$baseUrl/users/delete/$userId';
+      print('ApiService: 📡 URL de eliminación: $url');
+      print('ApiService: 📋 Headers: $headers');
+      
       final response = await http.delete(
-        Uri.parse('$baseUrl/users/delete/$userId'),
+        Uri.parse(url),
         headers: headers,
       );
 
-      if (response.statusCode != 200) {
+      print('ApiService: 📊 Código de respuesta: ${response.statusCode}');
+      print('ApiService: 📄 Cuerpo de respuesta: "${response.body}"');
+
+      if (response.statusCode == 200) {
+        print('ApiService: ✅ Usuario eliminado exitosamente de Firebase Auth y Firestore');
+      } else {
         final errorData = jsonDecode(response.body);
-        throw Exception(errorData['message'] ?? 'Error al eliminar usuario');
+        final errorMessage = errorData['message'] ?? 'Error al eliminar usuario';
+        print('ApiService: ❌ Error del servidor: $errorMessage');
+        throw Exception(errorMessage);
       }
     } catch (e) {
+      print('ApiService: ❌ Error de conexión: $e');
       throw Exception('Error de conexión: $e');
     }
   }

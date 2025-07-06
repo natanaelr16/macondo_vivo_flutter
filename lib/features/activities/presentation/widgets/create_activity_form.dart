@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../../shared/models/user_model.dart';
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
-
+import '../../../../shared/services/activity_service.dart';
+import '../../../../shared/models/activity_model.dart';
 
 class CreateActivityForm extends StatefulWidget {
   const CreateActivityForm({super.key});
@@ -13,55 +15,88 @@ class CreateActivityForm extends StatefulWidget {
 
 class _CreateActivityFormState extends State<CreateActivityForm> {
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
-
-  // Controllers for basic info
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _submissionLinkController = TextEditingController();
   final _estimatedDurationController = TextEditingController();
-
-  // Activity properties
+  final _submissionLinkController = TextEditingController();
+  
+  String? _selectedCategory;
   int _numberOfSessions = 1;
-  String _selectedCategory = 'Académica';
-  String _status = 'ACTIVA';
-  bool _adminCanEdit = true;
+  List<Map<String, dynamic>> _sessionDates = [];
+  List<String> _selectedResponsibleUsers = [];
+  List<String> _selectedParticipants = [];
+  
+  // Controllers for user search
+  final _responsibleSearchController = TextEditingController();
+  final _participantsSearchController = TextEditingController();
 
-  // Lists for materials and objectives
-  final List<String> _materials = [];
-  final List<String> _objectives = [];
-  final _materialController = TextEditingController();
-  final _objectiveController = TextEditingController();
-
-  // Session dates
-  final List<DateTime> _sessionDates = [];
-
-  // Participants and responsible users
-  final List<String> _selectedParticipants = [];
-  final List<String> _selectedResponsibleUsers = [];
-
-  // Options
   final List<String> _categoryOptions = [
-    'Académica',
-    'Deportiva',
-    'Cultural',
-    'Social',
-    'Administrativa',
-    'Formativa',
-    'Extracurricular',
+    'Matemáticas',
+    'Ciencias',
+    'Lenguaje',
+    'Historia',
+    'Geografía',
+    'Arte',
+    'Música',
+    'Deportes',
+    'Tecnología',
+    'Otros',
   ];
 
-  final List<String> _statusOptions = ['ACTIVA', 'INACTIVA', 'COMPLETADA'];
+  @override
+  void initState() {
+    super.initState();
+    _initializeSessions();
+  }
+
+  void _initializeSessions() {
+    final now = DateTime.now();
+    _sessionDates = [
+      {
+        'sessionNumber': 1,
+        'date': now.toIso8601String().split('T')[0],
+        'startTime': '08:00',
+        'endTime': '09:00',
+      }
+    ];
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
-    _submissionLinkController.dispose();
     _estimatedDurationController.dispose();
-    _materialController.dispose();
-    _objectiveController.dispose();
+    _submissionLinkController.dispose();
+    _responsibleSearchController.dispose();
+    _participantsSearchController.dispose();
     super.dispose();
+  }
+
+  void _addSession() {
+    setState(() {
+      final lastSession = _sessionDates.last;
+      final lastDate = DateTime.parse(lastSession['date']);
+      final nextDate = lastDate.add(const Duration(days: 7));
+      
+      _sessionDates.add({
+        'sessionNumber': _sessionDates.length + 1,
+        'date': nextDate.toIso8601String().split('T')[0],
+        'startTime': '08:00',
+        'endTime': '09:00',
+      });
+      _numberOfSessions = _sessionDates.length;
+    });
+  }
+
+  void _removeSession(int index) {
+    setState(() {
+      _sessionDates.removeAt(index);
+      // Reorder session numbers
+      for (int i = 0; i < _sessionDates.length; i++) {
+        _sessionDates[i]['sessionNumber'] = i + 1;
+      }
+      _numberOfSessions = _sessionDates.length;
+    });
   }
 
   @override
@@ -69,7 +104,6 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
     final backgroundColor = theme.colorScheme.surface;
-    final textColor = theme.colorScheme.onSurface;
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -78,473 +112,302 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          TextButton(
+            onPressed: _saveActivity,
+            child: const Text(
+              'Guardar',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header info
-              Container(
-                width: double.infinity,
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: SingleChildScrollView(
+                controller: scrollController,
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: primaryColor.withOpacity(0.3)),
-                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.assignment, color: primaryColor),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Nueva Actividad Escolar',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: primaryColor,
-                          ),
+                    // Drag handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Complete la información para crear una nueva actividad en el sistema.',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: textColor,
                       ),
                     ),
-                  ],
-                ),
-              ),
 
-              const SizedBox(height: 24),
+                    // Basic Information Section
+                    _buildSectionTitle('Información Básica'),
+                    const SizedBox(height: 12),
 
-              // Basic Information Section
-              _buildSectionTitle('Información Básica', textColor),
-              const SizedBox(height: 16),
-
-              // Title
-              TextFormField(
-                controller: _titleController,
-                decoration: const InputDecoration(
-                  labelText: 'Título de la Actividad *',
-                  hintText: 'Ingrese el título de la actividad',
-                  prefixIcon: Icon(Icons.title),
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'El título es requerido';
-                  }
-                  if (value.trim().length < 5) {
-                    return 'El título debe tener al menos 5 caracteres';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Description
-              TextFormField(
-                controller: _descriptionController,
-                decoration: const InputDecoration(
-                  labelText: 'Descripción *',
-                  hintText: 'Describa detalladamente la actividad',
-                  prefixIcon: Icon(Icons.description),
-                  alignLabelWithHint: true,
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'La descripción es requerida';
-                  }
-                  if (value.trim().length < 10) {
-                    return 'La descripción debe tener al menos 10 caracteres';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Category
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Categoría *',
-                  prefixIcon: Icon(Icons.category),
-                ),
-                items: _categoryOptions.map((category) {
-                  return DropdownMenuItem<String>(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _selectedCategory = value;
-                    });
-                  }
-                },
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Seleccione una categoría';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Sessions Section
-              _buildSectionTitle('Configuración de Sesiones', textColor),
-              const SizedBox(height: 16),
-
-              // Number of Sessions
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: theme.colorScheme.outline),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Número de Sesiones *',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: textColor,
+                    // Title
+                    TextFormField(
+                      controller: _titleController,
+                      decoration: const InputDecoration(
+                        labelText: 'Título *',
+                        hintText: 'Título de la actividad',
+                        prefixIcon: Icon(Icons.title),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            if (_numberOfSessions > 1) {
-                              setState(() {
-                                _numberOfSessions--;
-                                if (_sessionDates.length > _numberOfSessions) {
-                                  _sessionDates.removeRange(_numberOfSessions, _sessionDates.length);
-                                }
-                              });
-                            }
-                          },
-                          icon: const Icon(Icons.remove_circle_outline),
-                        ),
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: Text(
-                              '$_numberOfSessions sesión${_numberOfSessions == 1 ? '' : 'es'}',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.titleLarge,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _numberOfSessions++;
-                            });
-                          },
-                          icon: const Icon(Icons.add_circle_outline),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Session Dates
-              if (_numberOfSessions > 0) ...[
-                Text(
-                  'Fechas de las Sesiones',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...List.generate(_numberOfSessions, (index) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: theme.colorScheme.outline),
-                      ),
-                      leading: Icon(Icons.calendar_today, color: primaryColor),
-                      title: Text('Sesión ${index + 1}'),
-                      subtitle: Text(
-                        _sessionDates.length > index
-                            ? _formatDate(_sessionDates[index])
-                            : 'Seleccionar fecha',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _selectSessionDate(index),
-                    ),
-                  );
-                }),
-              ],
-
-              const SizedBox(height: 24),
-
-              // Additional Details Section
-              _buildSectionTitle('Detalles Adicionales', textColor),
-              const SizedBox(height: 16),
-
-              // Estimated Duration
-              TextFormField(
-                controller: _estimatedDurationController,
-                decoration: const InputDecoration(
-                  labelText: 'Duración Estimada (minutos)',
-                  hintText: '60',
-                  prefixIcon: Icon(Icons.timer),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value != null && value.trim().isNotEmpty) {
-                    final duration = int.tryParse(value.trim());
-                    if (duration == null || duration <= 0) {
-                      return 'Ingrese una duración válida en minutos';
-                    }
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Submission Link
-              TextFormField(
-                controller: _submissionLinkController,
-                decoration: const InputDecoration(
-                  labelText: 'Enlace de Entrega',
-                  hintText: 'https://classroom.google.com/...',
-                  prefixIcon: Icon(Icons.link),
-                ),
-                keyboardType: TextInputType.url,
-                validator: (value) {
-                  if (value != null && value.trim().isNotEmpty) {
-                    final uri = Uri.tryParse(value.trim());
-                    if (uri == null || !uri.hasAbsolutePath) {
-                      return 'Ingrese un enlace válido';
-                    }
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Materials Section
-              _buildSectionTitle('Materiales Necesarios', textColor),
-              const SizedBox(height: 16),
-              _buildListManager(
-                'Material',
-                _materials,
-                _materialController,
-                'Agregar material necesario para la actividad',
-                Icons.inventory,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Objectives Section
-              _buildSectionTitle('Objetivos de Aprendizaje', textColor),
-              const SizedBox(height: 16),
-              _buildListManager(
-                'Objetivo',
-                _objectives,
-                _objectiveController,
-                'Agregar objetivo de aprendizaje',
-                Icons.flag,
-              ),
-
-              const SizedBox(height: 24),
-
-              // Participants Section
-              _buildSectionTitle('Participantes y Responsables', textColor),
-              const SizedBox(height: 16),
-              _buildParticipantsSection(),
-
-              const SizedBox(height: 24),
-
-              // Status and Admin Settings
-              _buildSectionTitle('Configuración', textColor),
-              const SizedBox(height: 16),
-
-              // Status
-              DropdownButtonFormField<String>(
-                value: _status,
-                decoration: const InputDecoration(
-                  labelText: 'Estado *',
-                  prefixIcon: Icon(Icons.flag),
-                ),
-                items: _statusOptions.map((status) {
-                  return DropdownMenuItem<String>(
-                    value: status,
-                    child: Text(_getStatusDisplayName(status)),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() {
-                      _status = value;
-                    });
-                  }
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              // Admin Can Edit
-              SwitchListTile(
-                title: const Text('Los administradores pueden editar'),
-                subtitle: const Text('Permitir que otros administradores editen esta actividad'),
-                value: _adminCanEdit,
-                onChanged: (value) {
-                  setState(() {
-                    _adminCanEdit = value;
-                  });
-                },
-                contentPadding: EdgeInsets.zero,
-              ),
-
-              const SizedBox(height: 32),
-
-              // Action Buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _isLoading ? null : () {
-                        Navigator.of(context).pop();
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El título es requerido';
+                        }
+                        return null;
                       },
-                      child: const Text('Cancelar'),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _createActivity,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text('Crear Actividad'),
-                    ),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 16),
-            ],
-          ),
+                    const SizedBox(height: 12),
+
+                    // Description
+                    TextFormField(
+                      controller: _descriptionController,
+                      decoration: const InputDecoration(
+                        labelText: 'Descripción *',
+                        hintText: 'Descripción de la actividad',
+                        prefixIcon: Icon(Icons.description),
+                      ),
+                      maxLines: 2,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'La descripción es requerida';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Category and Duration Row
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            decoration: const InputDecoration(
+                              labelText: 'Categoría',
+                              prefixIcon: Icon(Icons.category),
+                            ),
+                            value: _selectedCategory,
+                            items: _categoryOptions.map((category) {
+                              return DropdownMenuItem<String>(
+                                value: category,
+                                child: Text(category),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCategory = value;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _estimatedDurationController,
+                            decoration: const InputDecoration(
+                              labelText: 'Duración (min)',
+                              prefixIcon: Icon(Icons.timer),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Submission Link
+                    TextFormField(
+                      controller: _submissionLinkController,
+                      decoration: const InputDecoration(
+                        labelText: 'Enlace para Entregas',
+                        hintText: 'https://ejemplo.com/entregas',
+                        prefixIcon: Icon(Icons.link),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Sessions Section
+                    _buildSectionTitle('Sesiones'),
+                    const SizedBox(height: 12),
+
+                    // Sessions list
+                    ..._sessionDates.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final session = entry.value;
+                      return _buildSessionCard(index, session);
+                    }),
+
+                    // Add session button
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _addSession,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Agregar Sesión'),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // Participants Section
+                    _buildSectionTitle('Participantes'),
+                    const SizedBox(height: 12),
+
+                    _buildParticipantsSection(),
+
+                    const SizedBox(height: 40), // Bottom padding
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title, Color textColor) {
+  Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: TextStyle(
-        fontSize: 18,
+      style: const TextStyle(
+        fontSize: 16,
         fontWeight: FontWeight.bold,
-        color: textColor,
       ),
     );
   }
 
-  Widget _buildListManager(
-    String itemName,
-    List<String> items,
-    TextEditingController controller,
-    String hintText,
-    IconData icon,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  prefixIcon: Icon(icon),
+  Widget _buildSessionCard(int index, Map<String, dynamic> session) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+    final textColor = theme.colorScheme.onSurface;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Sesión ${session['sessionNumber']}',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textColor,
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  setState(() {
-                    items.add(controller.text.trim());
-                    controller.clear();
-                  });
-                }
-              },
-              icon: const Icon(Icons.add_circle),
-            ),
-          ],
-        ),
-        if (items.isNotEmpty) ...[
+              const Spacer(),
+              if (_sessionDates.length > 1)
+                IconButton(
+                  onPressed: () => _removeSession(index),
+                  icon: const Icon(Icons.delete, color: Colors.red, size: 18),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
-          ...items.asMap().entries.map((entry) {
-            final index = entry.key;
-            final item = entry.value;
-            return Container(
-              margin: const EdgeInsets.only(bottom: 4),
+          
+          // Date picker
+          InkWell(
+            onTap: () => _selectSessionDate(index),
+            child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outline.withOpacity(0.5),
-                ),
+                border: Border.all(color: theme.colorScheme.outline),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Row(
                 children: [
-                  Expanded(child: Text(item)),
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        items.removeAt(index);
-                      });
-                    },
-                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                  Icon(Icons.calendar_today, size: 16, color: primaryColor),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDate(DateTime.parse(session['date'])),
+                    style: TextStyle(color: textColor),
                   ),
                 ],
               ),
-            );
-          }),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // Time pickers
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectSessionTime(index, 'startTime'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.colorScheme.outline),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.access_time, size: 16, color: primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          session['startTime'],
+                          style: TextStyle(color: textColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () => _selectSessionTime(index, 'endTime'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: theme.colorScheme.outline),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.access_time, size: 16, color: primaryColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          session['endTime'],
+                          style: TextStyle(color: textColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
-      ],
+      ),
     );
   }
 
@@ -556,38 +419,169 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Usuarios disponibles: ${users.length}',
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-              ),
+            // Responsible users selection
+            _buildUserSelection(
+              'Responsables',
+              users,
+              _selectedResponsibleUsers,
+              Icons.person_pin,
+              'Buscar responsables...',
+              _responsibleSearchController,
             ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Los participantes y responsables se asignarán automáticamente según los permisos de usuario.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            
+            const SizedBox(height: 16),
+            
+            // Participants selection
+            _buildUserSelection(
+              'Participantes',
+              users,
+              _selectedParticipants,
+              Icons.people,
+              'Buscar participantes...',
+              _participantsSearchController,
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildUserSelection(
+    String title,
+    List<UserModel> users,
+    List<String> selectedUsers,
+    IconData icon,
+    String hintText,
+    TextEditingController searchController,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        
+        // Selected users chips
+        if (selectedUsers.isNotEmpty) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: selectedUsers.map((userId) {
+              final user = users.firstWhere((u) => u.uid == userId);
+              return Chip(
+                label: Text(
+                  '${user.firstName} ${user.lastName}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onDeleted: () {
+                  setState(() {
+                    selectedUsers.remove(userId);
+                  });
+                },
+                deleteIcon: const Icon(Icons.close, size: 16),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+        ],
+        
+        // User search and selection
+        _buildUserSearchDropdown(
+          users,
+          selectedUsers,
+          hintText,
+          icon,
+          searchController,
+          (userId) {
+            setState(() {
+              selectedUsers.add(userId);
+              // Clear the search field after selection
+              searchController.clear();
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUserSearchDropdown(
+    List<UserModel> users,
+    List<String> selectedUsers,
+    String hintText,
+    IconData icon,
+    TextEditingController searchController,
+    Function(String) onUserSelected,
+  ) {
+    return Autocomplete<String>(
+      fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: searchController,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: hintText,
+            hintText: 'Buscar por nombre, documento o correo...',
+            prefixIcon: Icon(icon),
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.search),
+              onPressed: () {
+                // Trigger search
+              },
+            ),
+          ),
+        );
+      },
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        
+        final query = textEditingValue.text.toLowerCase();
+        final availableUsers = users.where((user) => 
+          !selectedUsers.contains(user.uid) &&
+          (user.firstName.toLowerCase().contains(query) ||
+           user.lastName.toLowerCase().contains(query) ||
+           user.documentNumber.toLowerCase().contains(query) ||
+           user.email.toLowerCase().contains(query))
+        );
+        
+        return availableUsers.map((user) => user.uid);
+      },
+      displayStringForOption: (String userId) {
+        final user = users.firstWhere((u) => u.uid == userId);
+        return '${user.firstName} ${user.lastName}';
+      },
+      onSelected: (String userId) {
+        onUserSelected(userId);
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Material(
+          elevation: 4.0,
+          child: Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: options.length,
+              itemBuilder: (context, index) {
+                final userId = options.elementAt(index);
+                final user = users.firstWhere((u) => u.uid == userId);
+                
+                return ListTile(
+                  title: Text('${user.firstName} ${user.lastName}'),
+                  subtitle: Text('${user.documentNumber} • ${user.email}'),
+                  onTap: () {
+                    onSelected(userId);
+                  },
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -596,17 +590,32 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
   Future<void> _selectSessionDate(int index) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: DateTime.parse(_sessionDates[index]['date']),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
 
     if (picked != null) {
       setState(() {
-        if (_sessionDates.length <= index) {
-          _sessionDates.addAll(List.filled(index + 1 - _sessionDates.length, DateTime.now()));
-        }
-        _sessionDates[index] = picked;
+        _sessionDates[index]['date'] = picked.toIso8601String().split('T')[0];
+      });
+    }
+  }
+
+  Future<void> _selectSessionTime(int index, String timeType) async {
+    final currentTime = TimeOfDay.fromDateTime(
+      DateTime.parse('2023-01-01 ${_sessionDates[index][timeType]}:00')
+    );
+    
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: currentTime,
+    );
+
+    if (picked != null) {
+      setState(() {
+        _sessionDates[index][timeType] = 
+            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       });
     }
   }
@@ -615,100 +624,80 @@ class _CreateActivityFormState extends State<CreateActivityForm> {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  String _getStatusDisplayName(String status) {
-    switch (status) {
-      case 'ACTIVA':
-        return 'Activa';
-      case 'INACTIVA':
-        return 'Inactiva';
-      case 'COMPLETADA':
-        return 'Completada';
-      default:
-        return status;
-    }
-  }
-
-  Future<void> _createActivity() async {
+  Future<void> _saveActivity() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_sessionDates.length < _numberOfSessions) {
+    if (_selectedResponsibleUsers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor seleccione las fechas para todas las sesiones'),
-          backgroundColor: Colors.orange,
-        ),
+        const SnackBar(content: Text('Debe seleccionar al menos un responsable')),
       );
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
+      // Get current user
       final authProvider = context.read<AuthProvider>();
-      final currentUser = authProvider.user;
-
+      final currentUser = authProvider.userData;
+      
       if (currentUser == null) {
         throw Exception('Usuario no autenticado');
       }
 
+      // Convert session dates to SessionDate objects
+      final sessionDates = _sessionDates.map((session) => SessionDate(
+        sessionNumber: session['sessionNumber'],
+        date: DateTime.parse(session['date']),
+        startTime: session['startTime'],
+        endTime: session['endTime'],
+      )).toList();
+
+      // Convert user IDs to Participant objects
+      final responsibleUsers = _selectedResponsibleUsers.map((userId) => Participant(
+        userId: userId,
+        status: 'PENDIENTE',
+      )).toList();
+
+      final participants = _selectedParticipants.map((userId) => Participant(
+        userId: userId,
+        status: 'PENDIENTE',
+      )).toList();
+
+      // Create activity data for API
       final activityData = {
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
         'numberOfSessions': _numberOfSessions,
-        'sessionDates': _sessionDates.take(_numberOfSessions).toList().asMap().entries.map((entry) => {
-          'sessionNumber': entry.key + 1,
-          'date': entry.value.toIso8601String(),
-          'startTime': '09:00',
-          'endTime': '10:00',
-        }).toList(),
+        'sessionDates': sessionDates.map((sd) => sd.toMap()).toList(),
         'submissionLink': _submissionLinkController.text.trim().isEmpty 
             ? null 
             : _submissionLinkController.text.trim(),
-        'category': _selectedCategory,
-        'estimatedDuration': _estimatedDurationController.text.trim().isEmpty 
-            ? null 
-            : int.tryParse(_estimatedDurationController.text.trim()),
-        'materials': _materials,
-        'objectives': _objectives,
-        'responsibleUsers': [], // Will be populated by the backend
-        'participants': [], // Will be populated by the backend
-        'status': _status,
-        'adminCanEdit': _adminCanEdit,
+        'category': _selectedCategory ?? 'Otros',
+        'estimatedDuration': int.tryParse(_estimatedDurationController.text) ?? 60,
+        'materials': <String>[],
+        'objectives': <String>[],
+        'responsibleUsers': responsibleUsers.map((p) => p.toMap()).toList(),
+        'participants': participants.map((p) => p.toMap()).toList(),
+        'status': ActivityStatus.ACTIVA.name,
+        'adminCanEdit': true,
         'createdBy_uid': currentUser.uid,
-        'createdAt': DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-        'sessionCompletions': [],
       };
 
-      await context.read<DataProvider>().createActivity(activityData);
+      final activityService = ActivityService();
+      await activityService.createActivity(activityData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Actividad creada exitosamente'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('Actividad creada exitosamente')),
         );
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al crear actividad: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error al crear la actividad: $e')),
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
       }
     }
   }
