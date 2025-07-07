@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../shared/providers/auth_provider.dart';
-import '../../../../shared/utils/validation_utils.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});

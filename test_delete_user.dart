@@ -16,7 +16,7 @@ void main() async {
     print('✅ Usuario autenticado: ${FirebaseAuth.instance.currentUser?.email}');
     
     // Test de eliminación de usuario
-    final testUserId = 'test_user_id'; // Reemplaza con un UID real de prueba
+    const testUserId = 'test_user_id'; // Reemplaza con un UID real de prueba
     
     print('🧪 Probando eliminación de usuario: $testUserId');
     

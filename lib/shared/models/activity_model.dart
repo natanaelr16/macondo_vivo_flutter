@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/date_utils.dart';
 
 // Types from the documentation
 enum ActivityStatus {
@@ -45,22 +46,22 @@ class SessionDate {
   factory SessionDate.fromMap(Map<String, dynamic> map) {
     // Helper function to parse dates from different formats
     DateTime parseDate(dynamic dateValue) {
-      if (dateValue == null) return DateTime.now();
+      if (dateValue == null) return DateUtils.getCurrentLocalDateTime();
       
       if (dateValue is Timestamp) {
-        return dateValue.toDate();
+        return dateValue.toDate().toLocal(); // Convertir a zona horaria local
       } else if (dateValue is String) {
         try {
-          return DateTime.parse(dateValue);
+          return DateUtils.parseFromISOString(dateValue); // Usar utilidad para parsear
         } catch (e) {
           print('Error parsing date string: $dateValue');
-          return DateTime.now();
+          return DateUtils.getCurrentLocalDateTime();
         }
       } else if (dateValue is DateTime) {
-        return dateValue;
+        return dateValue.toLocal(); // Asegurar que esté en zona horaria local
       } else {
         print('Unknown date format: ${dateValue.runtimeType}');
-        return DateTime.now();
+        return DateUtils.getCurrentLocalDateTime();
       }
     }
     
@@ -91,7 +92,7 @@ class Participant {
     return {
       'userId': userId,
       'status': status,
-      'completedAt': completedAt?.toIso8601String(),
+      'completedAt': completedAt != null ? DateUtils.toLocalISOString(completedAt!) : null,
     };
   }
 
@@ -101,16 +102,16 @@ class Participant {
       if (dateValue == null) return null;
       
       if (dateValue is Timestamp) {
-        return dateValue.toDate();
+        return dateValue.toDate().toLocal(); // Convertir a zona horaria local
       } else if (dateValue is String) {
         try {
-          return DateTime.parse(dateValue);
+          return DateUtils.parseFromISOString(dateValue); // Usar utilidad para parsear
         } catch (e) {
           print('Error parsing date string: $dateValue');
           return null;
         }
       } else if (dateValue is DateTime) {
-        return dateValue;
+        return dateValue.toLocal(); // Asegurar que esté en zona horaria local
       } else {
         print('Unknown date format: ${dateValue.runtimeType}');
         return null;
@@ -149,33 +150,33 @@ class SessionCompletion {
     return {
       'sessionNumber': sessionNumber,
       'userId': userId,
-      'completedAt': completedAt.toIso8601String(),
+      'completedAt': DateUtils.toLocalISOString(completedAt),
       'isResponsible': isResponsible,
       'status': status.name,
       'approvedBy': approvedBy,
-      'approvedAt': approvedAt?.toIso8601String(),
+      'approvedAt': approvedAt != null ? DateUtils.toLocalISOString(approvedAt!) : null,
     };
   }
 
   factory SessionCompletion.fromMap(Map<String, dynamic> map) {
     // Helper function to parse dates from different formats
     DateTime parseDate(dynamic dateValue) {
-      if (dateValue == null) return DateTime.now();
+      if (dateValue == null) return DateUtils.getCurrentLocalDateTime();
       
       if (dateValue is Timestamp) {
-        return dateValue.toDate();
+        return dateValue.toDate().toLocal(); // Convertir a zona horaria local
       } else if (dateValue is String) {
         try {
-          return DateTime.parse(dateValue);
+          return DateUtils.parseFromISOString(dateValue); // Usar utilidad para parsear
         } catch (e) {
           print('Error parsing date string: $dateValue');
-          return DateTime.now();
+          return DateUtils.getCurrentLocalDateTime();
         }
       } else if (dateValue is DateTime) {
-        return dateValue;
+        return dateValue.toLocal(); // Asegurar que esté en zona horaria local
       } else {
         print('Unknown date format: ${dateValue.runtimeType}');
-        return DateTime.now();
+        return DateUtils.getCurrentLocalDateTime();
       }
     }
     
@@ -184,16 +185,16 @@ class SessionCompletion {
       if (dateValue == null) return null;
       
       if (dateValue is Timestamp) {
-        return dateValue.toDate();
+        return dateValue.toDate().toLocal(); // Convertir a zona horaria local
       } else if (dateValue is String) {
         try {
-          return DateTime.parse(dateValue);
+          return DateUtils.parseFromISOString(dateValue); // Usar utilidad para parsear
         } catch (e) {
           print('Error parsing date string: $dateValue');
           return null;
         }
       } else if (dateValue is DateTime) {
-        return dateValue;
+        return dateValue.toLocal(); // Asegurar que esté en zona horaria local
       } else {
         print('Unknown date format: ${dateValue.runtimeType}');
         return null;
@@ -460,22 +461,22 @@ class ActivityModel {
     
     // Helper function to parse dates from different formats
     DateTime parseDate(dynamic dateValue) {
-      if (dateValue == null) return DateTime.now();
+      if (dateValue == null) return DateUtils.getCurrentLocalDateTime();
       
       if (dateValue is Timestamp) {
-        return dateValue.toDate();
+        return dateValue.toDate().toLocal(); // Convertir a zona horaria local
       } else if (dateValue is String) {
         try {
-          return DateTime.parse(dateValue);
+          return DateUtils.parseFromISOString(dateValue); // Usar utilidad para parsear
         } catch (e) {
           print('Error parsing date string: $dateValue');
-          return DateTime.now();
+          return DateUtils.getCurrentLocalDateTime();
         }
       } else if (dateValue is DateTime) {
-        return dateValue;
+        return dateValue.toLocal(); // Asegurar que esté en zona horaria local
       } else {
         print('Unknown date format: ${dateValue.runtimeType}');
-        return DateTime.now();
+        return DateUtils.getCurrentLocalDateTime();
       }
     }
     
@@ -576,8 +577,8 @@ class ActivityModel {
       'status': status.name,
       'adminCanEdit': adminCanEdit,
       'createdBy_uid': createdBy_uid,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'createdAt': DateUtils.toLocalISOString(createdAt),
+      'updatedAt': DateUtils.toLocalISOString(updatedAt),
       'sessionCompletions': sessionCompletions.map((sc) => sc.toMap()).toList(),
       'completionPercentage': completionPercentage ?? calculateCompletionPercentage(),
     };
@@ -610,8 +611,12 @@ class ActivityModel {
       ),
       adminCanEdit: json['adminCanEdit'] ?? true,
       createdBy_uid: json['createdBy_uid'] ?? '',
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: json['createdAt'] != null 
+          ? DateUtils.parseFromISOString(json['createdAt'])
+          : DateUtils.getCurrentLocalDateTime(),
+      updatedAt: json['updatedAt'] != null 
+          ? DateUtils.parseFromISOString(json['updatedAt'])
+          : DateUtils.getCurrentLocalDateTime(),
       sessionCompletions: (json['sessionCompletions'] as List<dynamic>?)
           ?.map((sc) => SessionCompletion.fromMap(sc))
           .toList() ?? [],

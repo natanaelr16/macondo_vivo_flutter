@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
 import '../../../../shared/models/user_model.dart';
@@ -21,7 +20,10 @@ class _CreateUserFormState extends State<CreateUserForm> {
   bool _isLoading = false;
   bool _isCheckingEmail = false;
   bool _emailExists = false;
+  bool _isCheckingDocument = false;
+  bool _documentExists = false;
   Timer? _emailCheckTimer;
+  Timer? _documentCheckTimer;
   int _superUserCount = 0;
 
   // Services
@@ -77,6 +79,7 @@ class _CreateUserFormState extends State<CreateUserForm> {
     _phoneController.dispose();
     _studentSearchController.dispose();
     _emailCheckTimer?.cancel();
+    _documentCheckTimer?.cancel();
     _studentSearchTimer?.cancel();
     super.dispose();
   }
@@ -186,11 +189,50 @@ class _CreateUserFormState extends State<CreateUserForm> {
     }
   }
 
+  // Check if document exists
+  Future<void> _checkDocumentExists(String documentNumber) async {
+    if (documentNumber.isEmpty) {
+      setState(() {
+        _documentExists = false;
+        _isCheckingDocument = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingDocument = true;
+    });
+
+    try {
+      final exists = await _userService.documentExists(documentNumber);
+      if (mounted) {
+        setState(() {
+          _documentExists = exists;
+          _isCheckingDocument = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isCheckingDocument = false;
+        });
+      }
+    }
+  }
+
   // Debounced email check
   void _onEmailChanged(String email) {
     _emailCheckTimer?.cancel();
     _emailCheckTimer = Timer(const Duration(milliseconds: 500), () {
       _checkEmailExists(email);
+    });
+  }
+
+  // Debounced document check
+  void _onDocumentChanged(String documentNumber) {
+    _documentCheckTimer?.cancel();
+    _documentCheckTimer = Timer(const Duration(milliseconds: 500), () {
+      _checkDocumentExists(documentNumber);
     });
   }
 
@@ -380,14 +422,37 @@ class _CreateUserFormState extends State<CreateUserForm> {
               // Document Number
               TextFormField(
                 controller: _documentNumberController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Número de Documento *',
                   hintText: 'Ingrese el número de documento',
-                  prefixIcon: Icon(Icons.numbers),
+                  prefixIcon: const Icon(Icons.numbers),
+                  suffixIcon: _isCheckingDocument
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : _documentNumberController.text.isNotEmpty
+                          ? Icon(
+                              _documentExists ? Icons.error : Icons.check_circle,
+                              color: _documentExists ? Colors.red : Colors.green,
+                            )
+                          : null,
+                  errorText: _documentExists ? 'Este documento ya está registrado' : null,
                 ),
+                onChanged: _onDocumentChanged,
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'El número de documento es requerido';
+                  }
+                  if (value.trim().length < 6) {
+                    return 'El número de documento debe tener al menos 6 caracteres';
+                  }
+                  if (_documentExists) {
+                    return 'Este documento ya está registrado';
                   }
                   return null;
                 },
@@ -1434,7 +1499,7 @@ class _CreateUserFormState extends State<CreateUserForm> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                      Text(
+                                Text(
                                   '${user.firstName} ${user.lastName}',
                                   style: TextStyle(
                                     fontSize: 18,
@@ -1456,13 +1521,12 @@ class _CreateUserFormState extends State<CreateUserForm> {
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Colors.grey[700],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
-                          _buildRoleBadge(user.appRole),
-                      ],
+                        ],
                       ),
                     ],
                   ),

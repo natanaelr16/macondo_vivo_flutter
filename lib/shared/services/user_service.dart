@@ -362,6 +362,27 @@ class UserService {
     }
   }
 
+  // Check if document number already exists
+  Future<bool> documentExists(String documentNumber) async {
+    try {
+      print('UserService: Checking if document exists: $documentNumber');
+      
+      final query = await _firestore
+          .collection('users')
+          .where('documentNumber', isEqualTo: documentNumber.trim())
+          .limit(1)
+          .get();
+      
+      final exists = query.docs.isNotEmpty;
+      print('UserService: Document exists: $exists');
+      
+      return exists;
+    } catch (e) {
+      print('UserService: Error checking document: $e');
+      return false;
+    }
+  }
+
   // Debug method to test user creation
   Future<void> debugUserCreation() async {
     try {
@@ -521,8 +542,8 @@ class UserService {
 
     // Validate document number
     final documentNumber = userData['documentNumber'].toString();
-    if (documentNumber.length < 8) {
-      return 'El número de documento debe tener al menos 8 caracteres';
+    if (documentNumber.length < 6) {
+      return 'El número de documento debe tener al menos 6 caracteres';
     }
 
     return null;

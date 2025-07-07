@@ -8,6 +8,7 @@ import '../../../../shared/models/activity_model.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../../../shared/services/activity_service.dart';
 import '../../../../core/widgets/loading_widget.dart';
+import '../widgets/session_action_buttons.dart';
 
 class ActivityDetailScreen extends StatefulWidget {
   final ActivityModel activity;
@@ -361,31 +362,11 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                 const SizedBox(height: 12),
                 
                 // Session actions
-                Row(
-                  children: [
-                    if (canComplete)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () => _completeSession(sessionNumber),
-                          icon: const Icon(Icons.check_circle, size: 18),
-                          label: const Text('Completar Sesión'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ),
-                    if (canApprove) ...[
-                      if (canComplete) const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showApprovalDialog(sessionNumber),
-                          icon: const Icon(Icons.approval, size: 18),
-                          label: const Text('Aprobar Participantes'),
-                        ),
-                      ),
-                    ],
-                  ],
+                SessionActionButtons(
+                  activity: widget.activity,
+                  sessionNumber: sessionNumber,
+                  canComplete: canComplete,
+                  canApprove: canApprove,
                 ),
               ],
             ),
@@ -805,15 +786,20 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
     final participants = widget.activity.participants;
     final totalParticipants = participants.length;
     final totalSessions = widget.activity.numberOfSessions;
-    final totalRequiredCompletions = totalParticipants * totalSessions;
     
+    // Solo contar sesiones completadas por participantes (no responsables)
+    final participantUserIds = participants.map((p) => p.userId).toList();
     final completions = widget.activity.sessionCompletions;
+    
+    // Contar solo completaciones de participantes que estén aprobadas o completadas
     final validCompletions = completions.where((c) => 
-      c.status == CompletionStatus.APPROVED || c.status == CompletionStatus.COMPLETED
+      participantUserIds.contains(c.userId) && 
+      (c.status == CompletionStatus.APPROVED || c.status == CompletionStatus.COMPLETED)
     ).length;
     
+    final totalRequiredCompletions = totalParticipants * totalSessions;
     final percentage = totalRequiredCompletions > 0 
-        ? (validCompletions / totalRequiredCompletions * 100).round()
+        ? ((validCompletions / totalRequiredCompletions * 100).round()).clamp(0, 100)
         : 0;
     
     return {
@@ -840,15 +826,40 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
   bool _canCompleteSession(int sessionNumber, UserModel? currentUser) {
     if (currentUser == null) return false;
     
-    // Check if user already completed this session
+    // Verificar si ya completó esta sesión
     final existingCompletion = _getUserSessionProgress(sessionNumber, currentUser.uid);
     if (existingCompletion != null) return false;
     
-    // Check if user is participant or responsible
-    final isParticipant = widget.activity.participants.any((p) => p.userId == currentUser.uid);
+    // Verificar si es la próxima sesión a completar
+    final userCompletions = widget.activity.sessionCompletions
+        .where((c) => c.userId == currentUser.uid && 
+            (c.status == CompletionStatus.APPROVED || c.status == CompletionStatus.COMPLETED))
+        .map((c) => c.sessionNumber)
+        .toList();
+    
+    final nextSession = userCompletions.isEmpty ? 1 : userCompletions.reduce((a, b) => a > b ? a : b) + 1;
+    
+    // Si no es la próxima sesión, no puede completar
+    if (sessionNumber != nextSession) return false;
+    
+    // Verificar si es responsable
     final isResponsible = widget.activity.responsibleUsers.any((r) => r.userId == currentUser.uid);
     
-    return isParticipant || isResponsible;
+    // Si es responsable, verificar que todos los participantes hayan completado y sido aprobados
+    if (isResponsible) {
+      final participants = widget.activity.participants;
+      final participantUserIds = participants.map((p) => p.userId).toList();
+      
+      // Verificar que todos los participantes hayan completado esta sesión
+      for (final participantId in participantUserIds) {
+        final participantCompletion = _getUserSessionProgress(sessionNumber, participantId);
+        if (participantCompletion == null || participantCompletion.status != CompletionStatus.APPROVED) {
+          return false; // Al menos un participante no ha completado o no ha sido aprobado
+        }
+      }
+    }
+    
+    return true;
   }
 
   bool _canApproveSession(int sessionNumber, UserModel? currentUser) {
@@ -1032,6 +1043,26 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
   }
 
   void _completeSession(int sessionNumber) async {
+    final currentUser = context.read<AuthProvider>().userData;
+    
+    // Validar si puede completar la sesión
+    if (!_canCompleteSession(sessionNumber, currentUser)) {
+      final isResponsible = widget.activity.responsibleUsers.any((r) => r.userId == currentUser?.uid);
+      
+      if (isResponsible) {
+        _showResponsibleCannotCompleteMessage(sessionNumber);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No puede completar esta sesión en este momento'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+    
     setState(() {
       _isLoading = true;
     });
@@ -1041,10 +1072,20 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
       await activityService.completeSession(widget.activity.activityId, sessionNumber);
       
       if (mounted) {
+        final isResponsible = widget.activity.responsibleUsers.any((r) => r.userId == currentUser?.uid);
+        
+        String message;
+        if (isResponsible) {
+          message = 'Sesión $sessionNumber completada exitosamente como responsable';
+        } else {
+          message = 'Sesión $sessionNumber marcada como completada. Pendiente de aprobación del responsable.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sesión $sessionNumber completada exitosamente'),
+            content: Text(message),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
           ),
         );
         // Refresh the activity data
@@ -1052,10 +1093,20 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final isResponsible = widget.activity.responsibleUsers.any((r) => r.userId == currentUser?.uid);
+        
+        String errorMessage;
+        if (isResponsible) {
+          errorMessage = 'Error al completar sesión $sessionNumber como responsable: ${e.toString()}';
+        } else {
+          errorMessage = 'Error al marcar sesión $sessionNumber como completada: ${e.toString()}';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error al completar sesión: ${e.toString()}'),
+            content: Text(errorMessage),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
           ),
         );
       }
@@ -1066,6 +1117,41 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         });
       }
     }
+  }
+
+  void _showResponsibleCannotCompleteMessage(int sessionNumber) {
+    final participants = widget.activity.participants;
+    final participantUserIds = participants.map((p) => p.userId).toList();
+    final pendingParticipants = <String>[];
+    
+    // Verificar qué participantes no han completado o no han sido aprobados
+    for (final participantId in participantUserIds) {
+      final participantCompletion = _getUserSessionProgress(sessionNumber, participantId);
+      if (participantCompletion == null) {
+        pendingParticipants.add('Usuario $participantId: No ha completado la sesión');
+      } else if (participantCompletion.status != CompletionStatus.APPROVED) {
+        pendingParticipants.add('Usuario $participantId: ${_getCompletionStatusLabel(participantCompletion.status)}');
+      }
+    }
+    
+    // Usar el mensaje exacto de la documentación
+    const message = 'No puedes completar esta sesión hasta que todos los participantes hayan enviado su parte';
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('No puedes completar esta sesión'),
+        content: SingleChildScrollView(
+          child: const Text(message),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showApprovalDialog(int sessionNumber) {

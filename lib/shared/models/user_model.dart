@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/date_utils.dart';
 
 // Types from the documentation
 enum UserType {
@@ -275,22 +276,22 @@ class UserModel {
     
     // Helper function to parse dates from different formats
     DateTime parseDate(dynamic dateValue) {
-      if (dateValue == null) return DateTime.now();
+      if (dateValue == null) return DateUtils.getCurrentLocalDateTime();
       
       if (dateValue is Timestamp) {
-        return dateValue.toDate();
+        return dateValue.toDate().toLocal();
       } else if (dateValue is String) {
         try {
-          return DateTime.parse(dateValue);
+          return DateUtils.parseFromISOString(dateValue);
         } catch (e) {
           print('Error parsing date string: $dateValue');
-          return DateTime.now();
+          return DateUtils.getCurrentLocalDateTime();
         }
       } else if (dateValue is DateTime) {
-        return dateValue;
+        return dateValue.toLocal();
       } else {
         print('Unknown date format: ${dateValue.runtimeType}');
-        return DateTime.now();
+        return DateUtils.getCurrentLocalDateTime();
       }
     }
     
@@ -420,8 +421,8 @@ class UserModel {
       'isActive': isActive,
       'provisionalPasswordSet': provisionalPasswordSet,
       'provisionalPassword': provisionalPassword, // Include in JSON for API compatibility
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
+      'createdAt': DateUtils.toLocalISOString(createdAt),
+      'updatedAt': DateUtils.toLocalISOString(updatedAt),
       'typeSpecificData': typeSpecificData?.toMap(),
     };
   }
@@ -453,8 +454,12 @@ class UserModel {
       isActive: json['isActive'] ?? true,
       provisionalPasswordSet: json['provisionalPasswordSet'] ?? false,
       provisionalPassword: json['provisionalPassword'], // Read from JSON if exists
-      createdAt: DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
+      createdAt: json['createdAt'] != null 
+          ? DateUtils.parseFromISOString(json['createdAt'])
+          : DateUtils.getCurrentLocalDateTime(),
+      updatedAt: json['updatedAt'] != null 
+          ? DateUtils.parseFromISOString(json['updatedAt'])
+          : DateUtils.getCurrentLocalDateTime(),
       typeSpecificData: json['typeSpecificData'] != null 
           ? TypeSpecificData.fromMap(json['typeSpecificData'])
           : null,

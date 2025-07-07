@@ -17,11 +17,28 @@ class ActivityService {
     if (user == null) {
       throw Exception('No hay usuario autenticado');
     }
-    final token = await user.getIdToken(true);
-    if (token == null) {
-      throw Exception('No se pudo obtener el token de autenticación');
+    
+    try {
+      // Forzar renovación del token
+      final token = await user.getIdToken(true);
+      if (token == null || token.isEmpty) {
+        throw Exception('No se pudo obtener el token de autenticación');
+      }
+      return token;
+    } catch (e) {
+      print('Error obteniendo token: $e');
+      // Intentar obtener token sin forzar renovación
+      try {
+        final token = await user.getIdToken(false);
+        if (token == null || token.isEmpty) {
+          throw Exception('Token de autenticación inválido');
+        }
+        return token;
+      } catch (e2) {
+        print('Error obteniendo token sin renovación: $e2');
+        throw Exception('Error de autenticación. Por favor, inicie sesión nuevamente.');
+      }
     }
-    return token;
   }
 
   // Make authenticated HTTP request
@@ -35,6 +52,7 @@ class ActivityService {
       final headers = {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       };
 
       http.Response response;
@@ -62,6 +80,45 @@ class ActivityService {
           break;
         default:
           throw Exception('Método HTTP no soportado: $method');
+      }
+
+      // Manejar errores de autenticación
+      if (response.statusCode == 401) {
+        print('Error 401 - Token inválido, intentando renovar...');
+        // Intentar renovar el token y reintentar la petición
+        try {
+          final newToken = await _getIdToken();
+          if (newToken != token) {
+            // Reintentar con el nuevo token
+            headers['Authorization'] = 'Bearer $newToken';
+            
+            switch (method.toUpperCase()) {
+              case 'GET':
+                response = await http.get(Uri.parse(url), headers: headers);
+                break;
+              case 'POST':
+                response = await http.post(
+                  Uri.parse(url),
+                  headers: headers,
+                  body: data != null ? jsonEncode(data) : null,
+                );
+                break;
+              case 'PUT':
+                response = await http.put(
+                  Uri.parse(url),
+                  headers: headers,
+                  body: data != null ? jsonEncode(data) : null,
+                );
+                break;
+              case 'DELETE':
+                response = await http.delete(Uri.parse(url), headers: headers);
+                break;
+            }
+          }
+        } catch (e) {
+          print('Error renovando token: $e');
+          throw Exception('Error de autenticación. Por favor, inicie sesión nuevamente.');
+        }
       }
 
       final responseData = response.body.isNotEmpty 
@@ -168,8 +225,16 @@ class ActivityService {
         data: activityData,
       );
 
-      if (response['statusCode'] == 201) {
-        return ActivityModel.fromJson(response['data']['activity']);
+      if (response['statusCode'] == 200 || response['statusCode'] == 201) {
+        final responseData = response['data'];
+        if (responseData != null) {
+          if (responseData['activity'] != null) {
+            return ActivityModel.fromJson(responseData['activity']);
+          }
+          return ActivityModel.fromJson(responseData);
+        } else {
+          throw Exception('Respuesta inválida del servidor: datos faltantes');
+        }
       } else {
         throw Exception('Error al crear actividad: ${response['statusCode']}');
       }

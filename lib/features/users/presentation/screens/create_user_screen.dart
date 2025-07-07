@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
-import '../../../../shared/models/user_model.dart';
 import '../../../../shared/services/user_service.dart';
 
 class CreateUserScreen extends StatefulWidget {

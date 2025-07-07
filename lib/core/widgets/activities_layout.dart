@@ -54,14 +54,14 @@ class _ActivitiesLayoutState extends State<ActivitiesLayout>
         if (!authProvider.isAuthenticated || _isCalendarView) {
           return FadeTransition(
             opacity: _fadeAnimation,
-            child: this.widget.child,
+            child: widget.child,
           );
         }
 
         return Scaffold(
           body: FadeTransition(
             opacity: _fadeAnimation,
-            child: this.widget.child,
+            child: widget.child,
           ),
           bottomNavigationBar: const FixedBottomNavigation(),
         );

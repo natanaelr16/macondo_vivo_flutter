@@ -114,11 +114,11 @@ class ActivityProgress extends StatelessWidget {
               color: Colors.green.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Row(
+            child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.check_circle, color: Colors.green, size: 16),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Text(
                   'Actividad Completada',
                   style: TextStyle(
@@ -266,7 +266,7 @@ class ActivityProgress extends StatelessWidget {
 
   Widget _buildSessionStatus(List<SessionCompletion> completions, ThemeData theme) {
     if (completions.isEmpty) {
-      return Icon(
+      return const Icon(
         Icons.schedule,
         color: Colors.grey,
         size: 16,

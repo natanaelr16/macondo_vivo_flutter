@@ -9,13 +9,12 @@ import '../../features/activities/presentation/screens/activities_screen.dart';
 import '../../features/users/presentation/screens/users_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
-import '../widgets/navigation_wrapper.dart';
-import '../widgets/fixed_layout.dart';
-import '../widgets/activities_layout.dart';
+import '../widgets/main_layout.dart';
 
 class AppRouter {
   static GoRouter get router => GoRouter(
     initialLocation: '/',
+    debugLogDiagnostics: false,
     redirect: (context, state) {
       final authProvider = context.read<AuthProvider>();
       
@@ -60,11 +59,8 @@ class AppRouter {
         name: 'dashboard',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const NavigationWrapper(
-            route: '/dashboard',
-            child: FixedLayout(
-              child: DashboardScreen(),
-            ),
+          child: const MainLayout(
+            child: DashboardScreen(),
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
@@ -79,11 +75,8 @@ class AppRouter {
         name: 'activities',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const NavigationWrapper(
-            route: '/activities',
-            child: ActivitiesLayout(
-              child: ActivitiesScreen(),
-            ),
+          child: const MainLayout(
+            child: ActivitiesScreen(),
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
@@ -98,11 +91,8 @@ class AppRouter {
         name: 'users',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const NavigationWrapper(
-            route: '/users',
-            child: FixedLayout(
-              child: UsersScreen(),
-            ),
+          child: const MainLayout(
+            child: UsersScreen(),
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
@@ -117,11 +107,8 @@ class AppRouter {
         name: 'reports',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const NavigationWrapper(
-            route: '/reports',
-            child: FixedLayout(
-              child: ReportsScreen(),
-            ),
+          child: const MainLayout(
+            child: ReportsScreen(),
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(
@@ -136,11 +123,8 @@ class AppRouter {
         name: 'settings',
         pageBuilder: (context, state) => CustomTransitionPage(
           key: state.pageKey,
-          child: const NavigationWrapper(
-            route: '/settings',
-            child: FixedLayout(
-              child: SettingsScreen(),
-            ),
+          child: const MainLayout(
+            child: SettingsScreen(),
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(

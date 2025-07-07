@@ -23,7 +23,7 @@ class _ActivitiesCalendarState extends State<ActivitiesCalendar> {
   CalendarFormat _calendarFormat = CalendarFormat.month;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  Map<DateTime, List<ActivityModel>> _events = {};
+  final Map<DateTime, List<ActivityModel>> _events = {};
 
   @override
   void initState() {
@@ -86,7 +86,7 @@ class _ActivitiesCalendarState extends State<ActivitiesCalendar> {
                 color: theme.colorScheme.primary.withOpacity(0.5),
                 shape: BoxShape.circle,
               ),
-              markerDecoration: BoxDecoration(
+              markerDecoration: const BoxDecoration(
                 color: Colors.orange,
                 shape: BoxShape.circle,
               ),
@@ -119,9 +119,9 @@ class _ActivitiesCalendarState extends State<ActivitiesCalendar> {
     final events = _getEventsForDay(_selectedDay!);
     
     if (events.isEmpty) {
-      return Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        child: const Padding(
+      return const Card(
+        margin: EdgeInsets.symmetric(horizontal: 16),
+        child: Padding(
           padding: EdgeInsets.all(16),
           child: Center(
             child: Text(
@@ -236,7 +236,14 @@ class _ActivitiesCalendarState extends State<ActivitiesCalendar> {
       return isResponsible || isParticipant;
     }
 
-    return activities.where(canUserSeeActivity).toList();
+    final filteredActivities = activities.where(canUserSeeActivity).toList();
+    
+    // Ordenar por fecha de creación (más recientes primero)
+    filteredActivities.sort((a, b) {
+      return b.createdAt.compareTo(a.createdAt); // Orden descendente (más reciente primero)
+    });
+    
+    return filteredActivities;
   }
 
   void _generateEvents(List<ActivityModel> activities) {

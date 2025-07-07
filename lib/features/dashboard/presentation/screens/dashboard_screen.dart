@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/providers/data_provider.dart';
 import '../../../../shared/providers/theme_provider.dart';
-import '../../../../shared/providers/navigation_provider.dart';
 import '../../../../core/widgets/animated_logo.dart';
-import '../../../../core/widgets/fixed_bottom_navigation.dart';
 import '../../../../core/widgets/navigation_card.dart';
 import '../../../../core/widgets/stat_card.dart';
-import '../../../../core/widgets/bottom_navigation.dart';
 import '../../../../core/widgets/profile_menu.dart';
+import '../../../../core/widgets/screen_transition_wrapper.dart';
 import '../../../../shared/models/activity_model.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -103,9 +99,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+      body: ScreenTransitionWrapper(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Animated Logo Section
@@ -325,6 +322,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

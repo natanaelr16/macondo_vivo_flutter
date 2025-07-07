@@ -191,7 +191,7 @@ class ActivityStats extends StatelessWidget {
               ],
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
@@ -266,7 +266,7 @@ class ActivityStats extends StatelessWidget {
               ],
             ),
           );
-        }).toList(),
+        }),
         if (sortedCategories.length > 5)
           Text(
             '... y ${sortedCategories.length - 5} categorías más',

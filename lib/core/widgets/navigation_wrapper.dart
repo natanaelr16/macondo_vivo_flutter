@@ -22,7 +22,9 @@ class _NavigationWrapperState extends State<NavigationWrapper> {
     super.initState();
     // Actualizar la ruta actual cuando se inicializa el widget
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<NavigationProvider>().setCurrentRoute(widget.route);
+      if (mounted) {
+        context.read<NavigationProvider>().setCurrentRoute(widget.route);
+      }
     });
   }
 

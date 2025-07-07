@@ -37,8 +37,27 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   ActivityFilter _currentFilter = ActivityFilter.all;
   ActivityView _currentView = ActivityView.list;
   String _searchQuery = '';
+  String? _selectedCategory;
+  bool _showAdvancedFilters = false;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+
+  // Categorías disponibles según la documentación
+  final List<String> _categories = [
+    'Literatura',
+    'Ciencias Naturales', 
+    'Matemáticas',
+    'Historia',
+    'Geografía',
+    'Inglés',
+    'Educación Física',
+    'Artes',
+    'Música',
+    'Tecnología',
+    'Convivencia',
+    'Proyecto Transversal',
+    'Otro'
+  ];
 
   @override
   void initState() {
@@ -212,6 +231,16 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                         decoration: InputDecoration(
                           hintText: 'Buscar actividades...',
                           prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    setState(() {
+                                      _searchQuery = '';
+                                    });
+                                  },
+                                )
+                              : null,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -219,6 +248,74 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
                           fillColor: cardColor,
                         ),
                       ),
+                      
+                      const SizedBox(height: 12),
+                      
+                      // Advanced filters toggle
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _showAdvancedFilters = !_showAdvancedFilters;
+                                });
+                              },
+                              icon: Icon(
+                                _showAdvancedFilters ? Icons.expand_less : Icons.expand_more,
+                                color: primaryColor,
+                              ),
+                              label: Text(
+                                'Filtros Avanzados',
+                                style: TextStyle(color: primaryColor),
+                              ),
+                            ),
+                          ),
+                          if (_selectedCategory != null || _searchQuery.isNotEmpty)
+                            TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _searchQuery = '';
+                                  _selectedCategory = null;
+                                });
+                              },
+                              icon: const Icon(Icons.clear_all, color: Colors.red),
+                              label: const Text('Limpiar', style: TextStyle(color: Colors.red)),
+                            ),
+                        ],
+                      ),
+                      
+                      // Advanced filters
+                      if (_showAdvancedFilters) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          value: _selectedCategory,
+                          decoration: InputDecoration(
+                            labelText: 'Categoría',
+                            prefixIcon: const Icon(Icons.category),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: cardColor,
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: null,
+                              child: Text('Todas las categorías'),
+                            ),
+                            ..._categories.map((category) => DropdownMenuItem<String>(
+                              value: category,
+                              child: Text(category),
+                            )),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedCategory = value;
+                            });
+                          },
+                        ),
+                      ],
                       
                       const SizedBox(height: 12),
                       
@@ -1037,11 +1134,15 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
     final user = authProvider.userData;
     if (user == null) return [];
 
+    // Aplicar filtros básicos primero
+    List<ActivityModel> filteredActivities;
+    
     switch (_currentFilter) {
       case ActivityFilter.all:
-        return activities;
+        filteredActivities = activities;
+        break;
       case ActivityFilter.myActivities:
-        return activities.where((activity) {
+        filteredActivities = activities.where((activity) {
           // SuperUser and ADMIN see all activities
           if (user.appRole == AppRole.SuperUser || user.appRole == AppRole.ADMIN) {
             return true;
@@ -1051,28 +1152,62 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
           final isResponsible = activity.responsibleUsers.any((r) => r.userId == user.uid);
           return isParticipant || isResponsible;
         }).toList();
+        break;
       case ActivityFilter.active:
-        return activities.where((activity) => activity.status == ActivityStatus.ACTIVA).toList();
+        filteredActivities = activities.where((activity) => activity.status == ActivityStatus.ACTIVA).toList();
+        break;
       case ActivityFilter.completed:
-        return activities.where((activity) => activity.status == ActivityStatus.COMPLETADA).toList();
+        filteredActivities = activities.where((activity) => activity.status == ActivityStatus.COMPLETADA).toList();
+        break;
       case ActivityFilter.inactive:
-        return activities.where((activity) => activity.status == ActivityStatus.INACTIVA).toList();
+        filteredActivities = activities.where((activity) => activity.status == ActivityStatus.INACTIVA).toList();
+        break;
     }
+    
+    // Aplicar búsqueda por texto
+    if (_searchQuery.isNotEmpty) {
+      filteredActivities = filteredActivities.where((activity) {
+        final searchLower = _searchQuery.toLowerCase();
+        return activity.title.toLowerCase().contains(searchLower) ||
+               activity.description.toLowerCase().contains(searchLower) ||
+               (activity.category?.toLowerCase().contains(searchLower) ?? false);
+      }).toList();
+    }
+    
+    // Aplicar filtro por categoría
+    if (_selectedCategory != null) {
+      filteredActivities = filteredActivities.where((activity) {
+        return activity.category == _selectedCategory;
+      }).toList();
+    }
+    
+    // Ordenar por fecha de creación (más recientes primero)
+    filteredActivities.sort((a, b) {
+      return b.createdAt.compareTo(a.createdAt); // Orden descendente (más reciente primero)
+    });
+    
+    return filteredActivities;
   }
 
   Map<String, dynamic> _calculateProgress(ActivityModel activity) {
-    final participants = activity.participants;
-    final totalParticipants = participants.length;
+    // Solo contar PARTICIPANTES para el progreso (no responsables)
+    final participantsOnly = activity.participants;
+    final uniqueParticipants = participantsOnly.toSet().toList();
+    
+    final totalParticipants = uniqueParticipants.length;
     final totalSessions = activity.numberOfSessions;
     final totalRequiredCompletions = totalParticipants * totalSessions;
     
-    final completions = activity.sessionCompletions;
-    final validCompletions = completions.where((c) => 
-      c.status == CompletionStatus.APPROVED || c.status == CompletionStatus.COMPLETED
-    ).length;
+    // Contar completaciones válidas (APPROVED o COMPLETED) solo de participantes
+    final participantUserIds = uniqueParticipants.map((p) => p.userId).toList();
+    final validCompletions = activity.sessionCompletions?.where((c) => 
+      participantUserIds.contains(c.userId) && 
+      (c.status == CompletionStatus.APPROVED || c.status == CompletionStatus.COMPLETED)
+    ).length ?? 0;
     
+    // Calcular porcentaje con máximo 100%
     final percentage = totalRequiredCompletions > 0 
-        ? (validCompletions / totalRequiredCompletions * 100).round()
+        ? ((validCompletions / totalRequiredCompletions) * 100).round().clamp(0, 100)
         : 0;
     
     return {
@@ -1152,13 +1287,54 @@ class _ActivitiesScreenState extends State<ActivitiesScreen> {
   }
 
   void _completeSession(ActivityModel activity) {
-    // TODO: Implement session completion logic
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Completando sesión de: ${activity.title}'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-      ),
-    );
+    final authProvider = context.read<AuthProvider>();
+    final currentUser = authProvider.userData;
+    
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debe iniciar sesión para completar actividades'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    // Verificar si el usuario es responsable o participante
+    final isResponsible = activity.responsibleUsers.any((r) => r.userId == currentUser.uid);
+    final isParticipant = activity.participants.any((p) => p.userId == currentUser.uid);
+    
+    if (!isResponsible && !isParticipant) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tiene permisos para completar esta actividad'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    
+    // Mostrar mensaje apropiado según el rol
+    if (isResponsible) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Como responsable, puede completar sesiones directamente. Vaya a los detalles de la actividad para completar sesiones específicas.'),
+          backgroundColor: Colors.blue,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Como participante, sus completaciones requieren aprobación del responsable. Vaya a los detalles de la actividad para completar sesiones.'),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+    
+    // Navegar a los detalles de la actividad
+    _showActivityDetails(activity);
   }
 }
 

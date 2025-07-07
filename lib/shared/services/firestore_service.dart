@@ -98,7 +98,7 @@ class FirestoreService {
       userData['uid'] = authUser.uid; // Usar el UID real del usuario
       // NO almacenar provisionalPassword en Firestore (según documentación web)
       userData['provisionalPasswordSet'] = true;
-      userData['createdAt'] = FieldValue.serverTimestamp();
+      userData['createdAt'] = FieldValue.serverTimestamp(); // Usar server timestamp para consistencia
       userData['createdBy'] = currentUserModel.uid; // Usar el UID del admin como creador
       userData['status'] = UserStatus.VERIFIED.name; // Asegurar que status esté presente
       

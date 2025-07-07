@@ -36,8 +36,8 @@ class _UsersScreenState extends State<UsersScreen> {
   
   // Paginación
   List<UserModel> _filteredUsers = [];
-  List<UserModel> _displayedUsers = []; // Usuarios mostrados actualmente
-  int _lastUsersLength = 0;
+  final List<UserModel> _displayedUsers = []; // Usuarios mostrados actualmente
+  final int _lastUsersLength = 0;
   String _lastUsersHash = ''; // Hash para detectar cambios reales en la lista
   int _currentPage = 0;
   static const int _usersPerPage = 10; // 10 usuarios por carga para mejor fluidez
@@ -927,7 +927,7 @@ class _UsersScreenState extends State<UsersScreen> {
                                         ),
                                         child: Text(
                                           'Nivel: ${_getGradeLevelDisplayName(_selectedGradeLevel!)}',
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             fontSize: 10,
                                             color: Colors.green,
                                             fontWeight: FontWeight.w500,
@@ -1827,10 +1827,10 @@ class _UsersScreenState extends State<UsersScreen> {
               ],
             );
           } else {
-            return Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey));
+            return const Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey));
           }
         } else {
-          return Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey));
+          return const Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey));
         }
         break;
     }
@@ -2341,10 +2341,10 @@ class _UsersScreenState extends State<UsersScreen> {
               ),
             );
           } else {
-            children.add(Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey)));
+            children.add(const Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey)));
           }
         } else {
-          children.add(Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey)));
+          children.add(const Text('Ningún estudiante asignado', style: TextStyle(fontSize: 13, color: Colors.grey)));
         }
         break;
     }

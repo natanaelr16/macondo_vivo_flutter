@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../shared/utils/password_utils.dart';
 import '../../shared/services/api_service.dart';
-import 'package:share_plus/share_plus.dart';
 
 class ProvisionalPasswordDisplay extends StatefulWidget {
   final String userId;
